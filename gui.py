@@ -9,12 +9,13 @@ class App():
 
         self.master = master
         # Create frame
-        frame = Frame(self.master)
-        frame.pack()
+        frame = Frame(self.master, relief=RAISED, borderwidth=1)
+        frame.pack(fill=BOTH, expand=True)
 
+        #Get host details
+        self.new_host()
         # Create panel
-        Label(master, text="Thakyou for using CBT backup").pack()
-        Label(master, text="Please connect to a new host").pack()
+        self.populate_page()
 
         # Create menu
         menu = Menu(self.master)
@@ -27,7 +28,7 @@ class App():
         self.button = Button(
             master, text="QUIT", fg="red", command=master.quit
         )
-        self.button.pack(side=LEFT)
+        self.button.pack(side=RIGHT, padx=5, pady=5)
 
 
     def get_details(self, object, type):
@@ -36,9 +37,9 @@ class App():
         details = {}
         #session_base = getattr(self._session.xenapi, type)
         #print session_base
-        y = getattr(x[type], "get_name_label(%s)" %object)
-        print y
-        details["name_label"] = y
+        #y = getattr(x[type], "get_name_label(%s)" %object)
+        #print y
+        #details["name_label"] = y
         print details
         #details["uuid"] = session_base.get_uuid(object)
 
@@ -81,12 +82,30 @@ class App():
             options[VDI] = name_label
         selected_VDIs = option_dialog(self.master)
         self.tracked_VDIs = selected_VDIs.results
+        print "tracked VDIs"
         print self.tracked_VDIs
-        for VDI in self.tracked_VDIs:
-            print self.get_details(VDI, "VDI")
+        #for VDI in self.tracked_VDIs:
+        #   print self.get_details(VDI, "VDI")
+
 
     def populate_page(self):
-        
+        # Set up frames
+        # Populate pages
+        self.populate_tracked()
+
+
+    def populate_tracked(self):
+        for tracked_VDI in self.tracked_VDIs:
+            w = Label(self.master, text=tracked_VDI)
+            w.pack(padx=5)
+
+
+    def populate_stats(self):
+        pass
+
+
+    def populate_details(self):
+        pass
 
 
 class option_dialog(tkSimpleDialog.Dialog):
@@ -95,27 +114,25 @@ class option_dialog(tkSimpleDialog.Dialog):
     def body(self, master):
         row = 0
         self.options = options
+        unique_name = ""
         for key, value in self.options.iteritems():
             #Create checkbox options for which one to track
+            unique_name = value.replace(" ","")
             Label(master, text=value).grid(row=row)
+            setattr(self, unique_name, Entry(master))
+            y = getattr(self, unique_name)
+            y.grid(row=row, column=1)
             row += 1
         print self.options
-
-        self.rand_string ="abcdefghijk"
-        for x in range(0, len(self.options)):
-            setattr(self, self.rand_string[x], Entry(master))
-            y = getattr(self, self.rand_string[x])
-            y.grid(row=x, column=1)
-        return getattr(self, "a")  # initial focus
+        return getattr(self, unique_name)  # initial focus
 
     def apply(self):
         self.results = []
-        x = 0
         for key, value in self.options.iteritems():
-            y = getattr(self, self.rand_string[x])
+            unique_name = value.replace(" ", "")
+            y = getattr(self, unique_name)
             if y.get():
                 self.results.append(key)
-            x += 1
 
 
 class new_host_dialog(tkSimpleDialog.Dialog):
@@ -145,6 +162,7 @@ class new_host_dialog(tkSimpleDialog.Dialog):
 
 def main():
     root = Tk()
+    root.geometry("800x600+300+300")
     app = App(root)
     root.mainloop()
     root.destroy()
