@@ -1,6 +1,6 @@
-from Tkinter import *
-import tkSimpleDialog
-import cbt_tests
+from tkinter import *
+from tkinter import simpledialog as SimpleDialog
+import backup
 import XenAPI
 
 class App():
@@ -15,7 +15,7 @@ class App():
         #Get host details
         self.new_host()
         # Create panel
-        self.populate_page()
+        #self.populate_page()
 
         # Create menu
         menu = Menu(self.master)
@@ -33,14 +33,14 @@ class App():
 
     def get_details(self, object, type):
         x = {"VDI": self._session.xenapi.VDI}
-        print "get_details"
+        print("get_details")
         details = {}
         #session_base = getattr(self._session.xenapi, type)
         #print session_base
         #y = getattr(x[type], "get_name_label(%s)" %object)
         #print y
         #details["name_label"] = y
-        print details
+        print(details)
         #details["uuid"] = session_base.get_uuid(object)
 
 
@@ -48,7 +48,13 @@ class App():
         d = new_host_dialog(self.master)
         self._pool_master_address, self._username, self._password = d.result
         self._session = self.create_new_session()
-        self.gather_host_info()
+        #self.gather_host_info()
+        v = new_vdi_dialog(self.master)
+        self._vdi = v.result
+        print(self._vdi)
+        self.find_vms()
+        b = backup.Backup(self._pool_master_address, self._username, self._password, self._vm_uuid)
+        print(b._get_timestamp())
 
 
     def create_new_session(self):
@@ -56,9 +62,14 @@ class App():
         session.login_with_password(self._username, self._password, "0.1", "CBT example")
         return session
 
+    def find_vms(self):
+        vms = self._session.xenapi.VM.get_all()
+        self._vm_uuid = self._session.xenapi.VM.get_uuid(vms[0])
+        print(self._vm_uuid)
+
     def gather_host_info(self):
         networks = self._session.xenapi.network.get_all()
-        print networks
+        print(networks)
         # User selects which networks to use
         # User selects which SR they are interested in
         SRs = self._session.xenapi.SR.get_all()
@@ -82,8 +93,8 @@ class App():
             options[VDI] = name_label
         selected_VDIs = option_dialog(self.master)
         self.tracked_VDIs = selected_VDIs.results
-        print "tracked VDIs"
-        print self.tracked_VDIs
+        print("tracked VDIs")
+        print(self.tracked_VDIs)
         #for VDI in self.tracked_VDIs:
         #   print self.get_details(VDI, "VDI")
 
@@ -108,7 +119,7 @@ class App():
         pass
 
 
-class option_dialog(tkSimpleDialog.Dialog):
+class option_dialog(SimpleDialog.Dialog):
     # TODO: Make generic dialog class
 
     def body(self, master):
@@ -123,7 +134,7 @@ class option_dialog(tkSimpleDialog.Dialog):
             y = getattr(self, unique_name)
             y.grid(row=row, column=1)
             row += 1
-        print self.options
+        print(self.options)
         return getattr(self, unique_name)  # initial focus
 
     def apply(self):
@@ -135,7 +146,69 @@ class option_dialog(tkSimpleDialog.Dialog):
                 self.results.append(key)
 
 
-class new_host_dialog(tkSimpleDialog.Dialog):
+class new_vdi_dialog(SimpleDialog.Dialog):
+    def create_new_session(self):
+        session = XenAPI.Session("https://dt56.uk.xensource.com", ignore_ssl=True)
+        session.login_with_password("root", "xenroot", "0.1", "CBT example")
+        return session
+
+    def body(self, master):
+        self._session = self.create_new_session()
+        Label(master, text="SR").grid(row=0)
+        Label(master, text="VDI").grid(row=1)
+
+        self.sr_listbox = Listbox(master)
+        self.sr_listbox.grid(row=0, column=1)
+        self.sr_listbox.insert(END, "Select an SR")
+
+        self.SRs = self._session.xenapi.SR.get_all()
+        for SR in self.SRs:
+            self.sr_listbox.insert(END, SR)
+        self.SR = None
+
+        self.vdi_listbox = Listbox(master)
+        self.vdi_listbox.grid(row=1, column=1)
+        self.vdi_listbox.insert(END, "Select a VDI")
+
+        VDIs = []
+        if self.SR:
+            VDIs = self._session.xenapi.SR.get_VDIs(self.SR)
+        for VDI in VDIs:
+            self.vdi_listbox.insert(END, VDI)
+
+        self.poll()
+
+
+    def apply(self):
+        vdi = self.vdi_listbox.curselection()
+        print(vdi)
+        print(self.VDIs)
+        print(vdi[0]-1)
+        first = self.VDIs[vdi[0] - 1]
+        self.result = first
+
+
+    def poll(self):
+        now = self.sr_listbox.curselection()
+        print("selected")
+        print(now)
+        if now != self.SR:
+            if now:
+                print("test")
+                self.list_has_changed(now)
+            self.current = now
+        self.after(250, self.poll)
+
+    def list_has_changed(self, selection):
+        self.vdi_listbox.delete(0,END)
+        self.vdi_listbox.insert(END, "Select a VDI")
+
+        self.VDIs = self._session.xenapi.SR.get_VDIs(self.SRs[selection[0]-1])
+        for VDI in self.VDIs:
+            self.vdi_listbox.insert(END, VDI)
+
+
+class new_host_dialog(SimpleDialog.Dialog):
     # TODO: Make generic dialog class
 
     def body(self, master):
