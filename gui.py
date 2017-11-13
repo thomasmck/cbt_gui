@@ -12,26 +12,27 @@ class App():
         frame = Frame(self.master, relief=RAISED, borderwidth=1)
         frame.pack(fill=BOTH, expand=True)
 
-        #Get host details
+        # Get host details and select first VDI to track
         self.new_host()
         # Create panel
         #self.populate_page()
 
         # Create menu
         menu = Menu(self.master)
-        master.config(menu=menu)
+        self.master.config(menu=menu)
         filemenu = Menu(menu)
         menu.add_cascade(label="File", menu=filemenu)
-        filemenu.add_command(label="New", command=self.new_host)
+        filemenu.add_command(label="New", command=self.new_vdi)
 
         # Create buttons
         self.button = Button(
-            master, text="QUIT", fg="red", command=master.quit
+            self.master, text="QUIT", fg="red", command=self.master.quit
         )
         self.button.pack(side=RIGHT, padx=5, pady=5)
 
 
     def get_details(self, object, type):
+        """Function to get details i.e. name label for a given  object ref"""
         x = {"VDI": self._session.xenapi.VDI}
         print("get_details")
         details = {}
@@ -45,10 +46,10 @@ class App():
 
 
     def new_host(self):
+        """Function to request details on host and VDI"""
         d = new_host_dialog(self.master)
         self._pool_master_address, self._username, self._password = d.result
         self._session = self.create_new_session()
-        #self.gather_host_info()
         v = new_vdi_dialog(self.master)
         self._vdi = v.result
         print(self._vdi)
@@ -58,92 +59,31 @@ class App():
 
 
     def create_new_session(self):
+        """Function to create new session"""
         session = XenAPI.Session("https://" + self._pool_master_address, ignore_ssl=True)
         session.login_with_password(self._username, self._password, "0.1", "CBT example")
         return session
 
+
     def find_vms(self):
+        """Temporary function to get first VM"""
         vms = self._session.xenapi.VM.get_all()
         self._vm_uuid = self._session.xenapi.VM.get_uuid(vms[0])
         print(self._vm_uuid)
 
-    def gather_host_info(self):
-        networks = self._session.xenapi.network.get_all()
-        print(networks)
-        # User selects which networks to use
-        # User selects which SR they are interested in
-        SRs = self._session.xenapi.SR.get_all()
-        global options
-        options = {}
-        for SR in SRs:
-            name_label = self._session.xenapi.SR.get_name_label(SR)
-            options[SR] = name_label
-        selected_SRs = option_dialog(self.master)
-        self.SR_dict = selected_SRs.results
-        # Find the VDIs for the selected SRs
-        VDIs = []
-        for SR in self.SR_dict:
-            VDI_list = self._session.xenapi.SR.get_VDIs(SR)
-            for VDI in VDI_list:
-                VDIs.append(VDI)
-        options = {}
-        # User selects which VDI to track
-        for VDI in VDIs:
-            name_label = self._session.xenapi.VDI.get_name_label(VDI)
-            options[VDI] = name_label
-        selected_VDIs = option_dialog(self.master)
-        self.tracked_VDIs = selected_VDIs.results
-        print("tracked VDIs")
-        print(self.tracked_VDIs)
-        #for VDI in self.tracked_VDIs:
-        #   print self.get_details(VDI, "VDI")
+
+    def new_vdi(self):
+        """Function to request new user selected VDI"""
+        v = new_vdi_dialog(self.master)
+        self._vdi = v.result
+        print(self._vdi)
 
 
     def populate_page(self):
+        """Placeholder function to populate frame with data"""
         # Set up frames
         # Populate pages
         self.populate_tracked()
-
-
-    def populate_tracked(self):
-        for tracked_VDI in self.tracked_VDIs:
-            w = Label(self.master, text=tracked_VDI)
-            w.pack(padx=5)
-
-
-    def populate_stats(self):
-        pass
-
-
-    def populate_details(self):
-        pass
-
-
-class option_dialog(SimpleDialog.Dialog):
-    # TODO: Make generic dialog class
-
-    def body(self, master):
-        row = 0
-        self.options = options
-        unique_name = ""
-        for key, value in self.options.iteritems():
-            #Create checkbox options for which one to track
-            unique_name = value.replace(" ","")
-            Label(master, text=value).grid(row=row)
-            setattr(self, unique_name, Entry(master))
-            y = getattr(self, unique_name)
-            y.grid(row=row, column=1)
-            row += 1
-        print(self.options)
-        return getattr(self, unique_name)  # initial focus
-
-    def apply(self):
-        self.results = []
-        for key, value in self.options.iteritems():
-            unique_name = value.replace(" ", "")
-            y = getattr(self, unique_name)
-            if y.get():
-                self.results.append(key)
 
 
 class new_vdi_dialog(SimpleDialog.Dialog):
@@ -154,27 +94,38 @@ class new_vdi_dialog(SimpleDialog.Dialog):
 
     def body(self, master):
         self._session = self.create_new_session()
-        Label(master, text="SR").grid(row=0)
+        Label(master, text="VM").grid(row=0)
         Label(master, text="VDI").grid(row=1)
 
         self.sr_listbox = Listbox(master)
         self.sr_listbox.grid(row=0, column=1)
         self.sr_listbox.insert(END, "Select an SR")
 
-        self.SRs = self._session.xenapi.SR.get_all()
-        for SR in self.SRs:
-            self.sr_listbox.insert(END, SR)
-        self.SR = None
+        VMs = self._session.xenapi.VM.get_all()
+        self.VMs = []
+        for VM in VMs:
+            print(VM)
+            print(self._session.xenapi.VM.get_is_a_template(VM))
+            if not self._session.xenapi.VM.get_is_a_template(VM):
+                print("remove")
+                self.VMs.append(VM)
+
+        for VM in self.VMs:
+            self.sr_listbox.insert(END, VM)
+        self.VM = None
 
         self.vdi_listbox = Listbox(master)
         self.vdi_listbox.grid(row=1, column=1)
         self.vdi_listbox.insert(END, "Select a VDI")
 
+        """
         VDIs = []
-        if self.SR:
+        if self.VM:
+            VBDs = self._session.xenapi.VMs.get_VBDs(self.SR)
             VDIs = self._session.xenapi.SR.get_VDIs(self.SR)
         for VDI in VDIs:
             self.vdi_listbox.insert(END, VDI)
+        """
 
         self.poll()
 
@@ -192,18 +143,22 @@ class new_vdi_dialog(SimpleDialog.Dialog):
         now = self.sr_listbox.curselection()
         print("selected")
         print(now)
-        if now != self.SR:
+        if now != self.VM:
             if now:
                 print("test")
                 self.list_has_changed(now)
             self.current = now
         self.after(250, self.poll)
 
+
     def list_has_changed(self, selection):
         self.vdi_listbox.delete(0,END)
         self.vdi_listbox.insert(END, "Select a VDI")
 
-        self.VDIs = self._session.xenapi.SR.get_VDIs(self.SRs[selection[0]-1])
+        VBDs = self._session.xenapi.VM.get_VBDs(self.VMs[selection[0]-1])
+        self.VDIs = []
+        for VBD in VBDs:
+            self.VDIs.append(self._session.xenapi.VBD.get_VDI(VBD))
         for VDI in self.VDIs:
             self.vdi_listbox.insert(END, VDI)
 
@@ -242,3 +197,30 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+
+"""class option_dialog(SimpleDialog.Dialog):
+    # TODO: Make generic dialog class
+
+    def body(self, master):
+        row = 0
+        self.options = options
+        unique_name = ""
+        for key, value in self.options.iteritems():
+            #Create checkbox options for which one to track
+            unique_name = value.replace(" ","")
+            Label(master, text=value).grid(row=row)
+            setattr(self, unique_name, Entry(master))
+            y = getattr(self, unique_name)
+            y.grid(row=row, column=1)
+            row += 1
+        print(self.options)
+        return getattr(self, unique_name)  # initial focus
+
+    def apply(self):
+        self.results = []
+        for key, value in self.options.iteritems():
+            unique_name = value.replace(" ", "")
+            y = getattr(self, unique_name)
+            if y.get():
+                self.results.append(key)"""
