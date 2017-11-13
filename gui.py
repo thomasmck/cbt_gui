@@ -51,7 +51,7 @@ class App():
         self._pool_master_address, self._username, self._password = d.result
         self._session = self.create_new_session()
         v = new_vdi_dialog(self.master)
-        self._vdi = v.result
+        self._vdi, second = v.result
         print(self._vdi)
         self.find_vms()
         b = backup.Backup(self._pool_master_address, self._username, self._password, self._vm_uuid)
@@ -75,7 +75,7 @@ class App():
     def new_vdi(self):
         """Function to request new user selected VDI"""
         v = new_vdi_dialog(self.master)
-        self._vdi = v.result
+        self._vdi, second = v.result
         print(self._vdi)
 
 
@@ -104,8 +104,6 @@ class new_vdi_dialog(SimpleDialog.Dialog):
         VMs = self._session.xenapi.VM.get_all()
         self.VMs = []
         for VM in VMs:
-            print(VM)
-            print(self._session.xenapi.VM.get_is_a_template(VM))
             if not self._session.xenapi.VM.get_is_a_template(VM):
                 print("remove")
                 self.VMs.append(VM)
@@ -118,15 +116,6 @@ class new_vdi_dialog(SimpleDialog.Dialog):
         self.vdi_listbox.grid(row=1, column=1)
         self.vdi_listbox.insert(END, "Select a VDI")
 
-        """
-        VDIs = []
-        if self.VM:
-            VBDs = self._session.xenapi.VMs.get_VBDs(self.SR)
-            VDIs = self._session.xenapi.SR.get_VDIs(self.SR)
-        for VDI in VDIs:
-            self.vdi_listbox.insert(END, VDI)
-        """
-
         self.poll()
 
 
@@ -136,7 +125,9 @@ class new_vdi_dialog(SimpleDialog.Dialog):
         print(self.VDIs)
         print(vdi[0]-1)
         first = self.VDIs[vdi[0] - 1]
-        self.result = first
+        print("Results are:")
+        second = self.VMs[self.VM[0]-1]
+        self.result = first, second
 
 
     def poll(self):
@@ -144,10 +135,11 @@ class new_vdi_dialog(SimpleDialog.Dialog):
         print("selected")
         print(now)
         if now != self.VM:
+            print("now")
             if now:
                 print("test")
                 self.list_has_changed(now)
-            self.current = now
+                self.VM = now
         self.after(250, self.poll)
 
 
