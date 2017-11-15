@@ -9,19 +9,22 @@ class App():
 
         self.master = master
         # Create frame
-        top_frame = Frame(self.master, bg='cyan', width=300, height=100)
-        left_frame = Frame(self.master, bg='yellow', width=160, height=350)
-        btm_frame = Frame(self.master, bg='red', width=300, height=250)
+        top_frame = Frame(self.master, bg='cyan', width=300, height=100, pady=3, padx=3)
+        left_frame = Frame(self.master, bg='yellow', width=160, height=350, padx=3)
+        btm_frame = Frame(self.master, bg='red', width=300, height=250, pady=3, padx=3)
 
         # layout all of the main containers
         self.master.grid_rowconfigure(1, weight=1)
-        self.master.grid_columnconfigure(0, weight=1)
+        self.master.grid_columnconfigure(1, weight=1)
 
-        top_frame.grid(row=0, column=1, sticky="ew")
-        left_frame.grid(rowspan=2, row=0, sticky="ew")
-        btm_frame.grid(row=1, column=1, sticky="ew")
+        top_frame.grid(row=0, column=1, sticky="nsew")
+        left_frame.grid(rowspan=2, row=0, sticky="nsew")
+        btm_frame.grid(row=1, column=1, sticky="nsew")
 
         # Create widgets
+        name_label = Label(top_frame, text="Dummy text")
+        name_label.grid(row=0, column=1)
+
         """
         name_label = Label(top_frame, text="Dummy text")
         vdi_label =  Label(left_frame, text="VDIs")
