@@ -9,26 +9,40 @@ class App():
 
         self.master = master
         # Create frame
-        frame = Frame(self.master, relief=RAISED, borderwidth=1)
-        frame.pack(fill=BOTH, expand=True)
+        top_frame = Frame(self.master, bg='cyan', width=300, height=100)
+        left_frame = Frame(self.master, bg='yellow', width=160, height=350)
+        btm_frame = Frame(self.master, bg='red', width=300, height=250)
 
-        # Get host details and select first VDI to track
-        self.new_host()
-        # Create panel
-        #self.populate_page()
+        # layout all of the main containers
+        self.master.grid_rowconfigure(1, weight=1)
+        self.master.grid_columnconfigure(0, weight=1)
 
-        # Create menu
+        top_frame.grid(row=0, column=1, sticky="ew")
+        left_frame.grid(rowspan=2, row=0, sticky="ew")
+        btm_frame.grid(row=1, column=1, sticky="ew")
+
+        # Create widgets
+        """
+        name_label = Label(top_frame, text="Dummy text")
+        vdi_label =  Label(left_frame, text="VDIs")
+        detail_label = Label(btm_frame, text="Details")
+
+        # Layout the widgets
+        name_label.grid()
+        vdi_label.grid()
+        detail_label.grid()
+        """
+
+        # Create menu bar
         menu = Menu(self.master)
         self.master.config(menu=menu)
         filemenu = Menu(menu)
         menu.add_cascade(label="File", menu=filemenu)
         filemenu.add_command(label="New", command=self.new_vdi)
 
-        # Create buttons
-        self.button = Button(
-            self.master, text="QUIT", fg="red", command=self.master.quit
-        )
-        self.button.pack(side=RIGHT, padx=5, pady=5)
+        # Get host details and select first VDI to track
+        # Consider not running automatically
+        self.new_host()
 
 
     def get_details(self, object, type):
@@ -51,11 +65,10 @@ class App():
         self._pool_master_address, self._username, self._password = d.result
         self._session = self.create_new_session()
         v = new_vdi_dialog(self.master)
-        self._vdi, second = v.result
+        self._vdi, self._vm_uuid = v.result
         print(self._vdi)
-        self.find_vms()
-        b = backup.Backup(self._pool_master_address, self._username, self._password, self._vm_uuid)
-        print(b._get_timestamp())
+        self.backup = backup.Backup(self._pool_master_address, self._username, self._password, self._vm_uuid)
+        print(self.backup._get_timestamp())
 
 
     def create_new_session(self):
@@ -65,17 +78,10 @@ class App():
         return session
 
 
-    def find_vms(self):
-        """Temporary function to get first VM"""
-        vms = self._session.xenapi.VM.get_all()
-        self._vm_uuid = self._session.xenapi.VM.get_uuid(vms[0])
-        print(self._vm_uuid)
-
-
     def new_vdi(self):
         """Function to request new user selected VDI"""
         v = new_vdi_dialog(self.master)
-        self._vdi, second = v.result
+        self._vdi, self._vm_uuid = v.result
         print(self._vdi)
 
 
@@ -109,7 +115,8 @@ class new_vdi_dialog(SimpleDialog.Dialog):
                 self.VMs.append(VM)
 
         for VM in self.VMs:
-            self.sr_listbox.insert(END, VM)
+            VM_name_label = self._session.xenapi.VM.get_name_label(VM)
+            self.sr_listbox.insert(END, VM_name_label)
         self.VM = None
 
         self.vdi_listbox = Listbox(master)
@@ -125,8 +132,7 @@ class new_vdi_dialog(SimpleDialog.Dialog):
         print(self.VDIs)
         print(vdi[0]-1)
         first = self.VDIs[vdi[0] - 1]
-        print("Results are:")
-        second = self.VMs[self.VM[0]-1]
+        second =  self._session.xenapi.VM.get_uuid(self.VMs[self.VM[0]-1])
         self.result = first, second
 
 
@@ -152,7 +158,8 @@ class new_vdi_dialog(SimpleDialog.Dialog):
         for VBD in VBDs:
             self.VDIs.append(self._session.xenapi.VBD.get_VDI(VBD))
         for VDI in self.VDIs:
-            self.vdi_listbox.insert(END, VDI)
+            VDI_name_label = self._session.xenapi.VDI.get_name_label(VDI)
+            self.vdi_listbox.insert(END, VDI_name_label)
 
 
 class new_host_dialog(SimpleDialog.Dialog):
@@ -182,7 +189,7 @@ class new_host_dialog(SimpleDialog.Dialog):
 
 def main():
     root = Tk()
-    root.geometry("800x600+300+300")
+    root.geometry('{}x{}'.format(460, 350))
     app = App(root)
     root.mainloop()
     root.destroy()
