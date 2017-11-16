@@ -8,33 +8,9 @@ class App():
     def __init__(self, master):
 
         self.master = master
-        # Create frame
-        top_frame = Frame(self.master, bg='cyan', width=300, height=100, pady=3, padx=3)
-        left_frame = Frame(self.master, bg='yellow', width=160, height=350, padx=3)
-        btm_frame = Frame(self.master, bg='red', width=300, height=250, pady=3, padx=3)
-
-        # layout all of the main containers
-        self.master.grid_rowconfigure(1, weight=1)
-        self.master.grid_columnconfigure(1, weight=1)
-
-        top_frame.grid(row=0, column=1, sticky="nsew")
-        left_frame.grid(rowspan=2, row=0, sticky="nsew")
-        btm_frame.grid(row=1, column=1, sticky="nsew")
-
-        # Create widgets
-        name_label = Label(top_frame, text="Dummy text")
-        name_label.grid(row=0, column=1)
-
-        """
-        name_label = Label(top_frame, text="Dummy text")
-        vdi_label =  Label(left_frame, text="VDIs")
-        detail_label = Label(btm_frame, text="Details")
-
-        # Layout the widgets
-        name_label.grid()
-        vdi_label.grid()
-        detail_label.grid()
-        """
+        self.setup1()
+        self._vdi = []
+        self._vm_uuid = []
 
         # Create menu bar
         menu = Menu(self.master)
@@ -42,11 +18,35 @@ class App():
         filemenu = Menu(menu)
         menu.add_cascade(label="File", menu=filemenu)
         filemenu.add_command(label="New", command=self.new_vdi)
+        filemenu.add_command(label="Exit", command=quit)
 
         # Get host details and select first VDI to track
         # Consider not running automatically
         self.new_host()
+        self.new_vdi()
 
+    def setup1(self):
+        self.m1 = PanedWindow(self.master, bg='red')
+        self.m1.pack(fill=BOTH, expand=1)
+
+        #left = Label(self.m1, text="left pane", anchor='nw')
+        self.left_frame = Frame(self.master, bg='cyan')
+        self.m1.add(self.left_frame)
+
+        self.m2 = PanedWindow(self.m1, orient=VERTICAL, bg='yellow')
+        self.m1.add(self.m2)
+
+        #top = Label(self.m2, text="top pane", anchor='nw')
+        self.top_frame = Frame(self.master, bg='blue')
+        self.m2.add(self.top_frame)
+
+        #bottom = Label(self.m2, text="bottom pane", anchor='nw', height=100)
+        self.bottom_frame = Frame(self.master, bg='green')
+        self.m2.add(self.bottom_frame)
+
+        Label(self.left_frame, text="VDI").grid(row=0, sticky='W')
+        Label(self.top_frame, text="Graphs").grid(row=0, sticky='W')
+        Label(self.bottom_frame, text="Details").grid(row=0, sticky='W')
 
     def get_details(self, object, type):
         """Function to get details i.e. name label for a given  object ref"""
@@ -67,11 +67,18 @@ class App():
         d = new_host_dialog(self.master)
         self._pool_master_address, self._username, self._password = d.result
         self._session = self.create_new_session()
+
+
+    def new_vdi(self):
         v = new_vdi_dialog(self.master)
-        self._vdi, self._vm_uuid = v.result
-        print(self._vdi)
-        self.backup = backup.Backup(self._pool_master_address, self._username, self._password, self._vm_uuid)
+        vdi, vm_uuid = v.result
+        if vdi not in self._vdi:
+            self._vdi.append(vdi)
+        if vm_uuid not in self._vm_uuid:
+            self._vm_uuid.append(vm_uuid)
+        self.backup = backup.Backup(self._pool_master_address, self._username, self._password, self._vm_uuid[0])
         print(self.backup._get_timestamp())
+        self.populate_page()
 
 
     def create_new_session(self):
@@ -81,18 +88,14 @@ class App():
         return session
 
 
-    def new_vdi(self):
-        """Function to request new user selected VDI"""
-        v = new_vdi_dialog(self.master)
-        self._vdi, self._vm_uuid = v.result
-        print(self._vdi)
-
-
     def populate_page(self):
         """Placeholder function to populate frame with data"""
         # Set up frames
         # Populate pages
-        self.populate_tracked()
+        print("Populating")
+        for v in range(len(self._vdi)):
+            print(v)
+            vdi_label = Label(self.left_frame, text=self._vdi[v]).grid(row=v+1)
 
 
 class new_vdi_dialog(SimpleDialog.Dialog):
@@ -201,7 +204,32 @@ if __name__ == "__main__":
     main()
 
 
-"""class option_dialog(SimpleDialog.Dialog):
+"""
+    def setup2(self):
+        # Create frame
+        top_frame = Frame(self.master, bg='cyan', width=300, height=100, pady=3, padx=3)
+        left_frame = Frame(self.master, bg='yellow', width=160, height=350, padx=3)
+        btm_frame = Frame(self.master, bg='red', width=300, height=250, pady=3, padx=3)
+
+        # layout all of the main containers
+        self.master.grid_rowconfigure(1, weight=1)
+        self.master.grid_columnconfigure(1, weight=1)
+
+        top_frame.grid(row=0, column=1, sticky="nsew")
+        left_frame.grid(rowspan=2, row=0, sticky="nsew")
+        btm_frame.grid(row=1, column=1, sticky="nsew")
+
+        # Create widgets
+        name_label = Label(top_frame, text="Dummy text")
+        vdi_label = Label(left_frame, text="VDIs")
+        detail_label = Label(btm_frame, text="Details")
+
+        # Layout the widgets
+        name_label.grid()
+        vdi_label.grid()
+        detail_label.grid()
+
+class option_dialog(SimpleDialog.Dialog):
     # TODO: Make generic dialog class
 
     def body(self, master):
