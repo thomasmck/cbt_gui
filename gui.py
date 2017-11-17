@@ -1,6 +1,6 @@
 from tkinter import *
 from tkinter import simpledialog as SimpleDialog
-import backup
+import backup as BackUp
 import XenAPI
 
 class App():
@@ -18,6 +18,7 @@ class App():
         filemenu = Menu(menu)
         menu.add_cascade(label="File", menu=filemenu)
         filemenu.add_command(label="New", command=self.new_vdi)
+        filemenu.add_command(label="Backup", command=self.backup_vm)
         filemenu.add_command(label="Exit", command=quit)
 
         # Get host details and select first VDI to track
@@ -76,9 +77,14 @@ class App():
             self._vdi.append(vdi)
         if vm_uuid not in self._vm_uuid:
             self._vm_uuid.append(vm_uuid)
-        self.backup = backup.Backup(self._pool_master_address, self._username, self._password, self._vm_uuid[0])
+        self.backup = BackUp.Backup(self._pool_master_address, self._username, self._password, self._vm_uuid[0])
         print(self.backup._get_timestamp())
         self.populate_page()
+
+
+    def backup_vm(self):
+        location = self.backup.backup()
+        print(location)
 
 
     def create_new_session(self):
