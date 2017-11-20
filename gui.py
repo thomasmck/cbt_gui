@@ -54,13 +54,7 @@ class App():
         x = {"VDI": self._session.xenapi.VDI}
         print("get_details")
         details = {}
-        #session_base = getattr(self._session.xenapi, type)
-        #print session_base
-        #y = getattr(x[type], "get_name_label(%s)" %object)
-        #print y
-        #details["name_label"] = y
         print(details)
-        #details["uuid"] = session_base.get_uuid(object)
 
 
     def new_host(self):
@@ -98,10 +92,35 @@ class App():
         """Placeholder function to populate frame with data"""
         # Set up frames
         # Populate pages
-        print("Populating")
-        for v in range(len(self._vdi)):
-            print(v)
-            vdi_label = Label(self.left_frame, text=self._vdi[v]).grid(row=v+1)
+        print("Populating1")
+        self.VM = None
+        self.vm_list = Listbox(self.left_frame)
+        self.vm_list.grid(row=1)
+        for v in self._vm_uuid:
+            self.vm_list.insert(END, v)
+        self.poll_details()
+
+
+    def update_details(self, selection):
+        self.details_label = Label(self.bottom_frame, text=selection)
+        self.details_label.grid(row=0)
+
+
+    def poll_details(self):
+        now = self.vm_list.curselection()
+        print("selected1")
+        print(now)
+        if now != self.VM:
+            print("now1")
+            if now:
+                print("test1")
+                self.update_details(now)
+                self.VM = now
+        self.master.after(1000, self.poll_details)
+
+
+    def populate_graph(self):
+        pass
 
 
 class new_vdi_dialog(SimpleDialog.Dialog):
