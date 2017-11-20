@@ -2,6 +2,9 @@ from tkinter import *
 from tkinter import simpledialog as SimpleDialog
 import backup as BackUp
 import XenAPI
+import plotly.plotly as py
+import plotly.graph_objs as go
+import plotly.offline as offline
 
 class App():
 
@@ -98,12 +101,33 @@ class App():
         self.vm_list.grid(row=1)
         for v in self._vm_uuid:
             self.vm_list.insert(END, v)
+        self.populate_graph()
         self.poll_details()
 
 
+    def populate_graph(self):
+        """Generate graph of how many backups have been done each day"""
+        offline.init_notebook_mode()
+
+        offline.plot({'data': [{'y': [4, 2, 3, 4]}],
+                      'layout': {'title': 'Test Plot',
+                                 'font': dict(family='Comic Sans MS', size=16)}},
+                     auto_open=True, image='png', image_filename='plot_image',
+                     output_type='file', image_width=800, image_height=600, filename='temp-plot.png', validate=False)
+        photo = PhotoImage(name="temp-plot.png")
+        w = Label(self.top_frame, image=photo)
+        w.grid()
+        print("Here")
+
+
     def update_details(self, selection):
-        self.details_label = Label(self.bottom_frame, text=selection)
-        self.details_label.grid(row=0)
+        vm = self._vm_uuid[selection[0]-1]
+        self.details_label = Label(self.bottom_frame, text=vm)
+        self.details_label.grid(row=1)
+        ref = self._session.xenapi.VM.get_by_uuid(vm)
+        name = self._session.xenapi.VM.get_name_label(ref)
+        self.name_label = Label(self.bottom_frame, text=name)
+        self.name_label.grid(row=2)
 
 
     def poll_details(self):
