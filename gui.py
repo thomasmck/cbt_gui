@@ -5,6 +5,10 @@ import XenAPI
 import plotly.plotly as py
 import plotly.graph_objs as go
 import plotly.offline as offline
+import matplotlib
+matplotlib.use("TkAgg")
+from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg, NavigationToolbar2TkAgg
+from matplotlib.figure import Figure
 
 class App():
 
@@ -48,9 +52,9 @@ class App():
         self.bottom_frame = Frame(self.master, bg='green')
         self.m2.add(self.bottom_frame)
 
-        Label(self.left_frame, text="VDI").grid(row=0, sticky='W')
-        Label(self.top_frame, text="Graphs").grid(row=0, sticky='W')
-        Label(self.bottom_frame, text="Details").grid(row=0, sticky='W')
+        Label(self.left_frame, text="VDI", width=30).grid(row=0, sticky='W')
+        Label(self.top_frame, text="Graphs", width=100).grid(row=0, sticky='W')
+        Label(self.bottom_frame, text="Details", width=100).grid(row=0, sticky='W')
 
     def get_details(self, object, type):
         """Function to get details i.e. name label for a given  object ref"""
@@ -91,6 +95,20 @@ class App():
         return session
 
 
+    def graph_populate(self):
+        """Generate graph of how many backups have been done each day"""
+        print("THERE")
+        f = Figure(figsize=(5, 2), dpi=100)
+        a = f.add_subplot(111)
+        a.plot([1, 2, 3, 4, 5, 6, 7, 8], [5, 6, 1, 3, 8, 9, 3, 5])
+
+        canvas = FigureCanvasTkAgg(f, master=self.top_frame)
+        #canvas.show()
+        canvas.get_tk_widget().grid()
+        canvas.draw()
+        print("HERE")
+
+
     def populate_page(self):
         """Placeholder function to populate frame with data"""
         # Set up frames
@@ -101,23 +119,8 @@ class App():
         self.vm_list.grid(row=1)
         for v in self._vm_uuid:
             self.vm_list.insert(END, v)
-        self.populate_graph()
+        self.graph_populate()
         self.poll_details()
-
-
-    def populate_graph(self):
-        """Generate graph of how many backups have been done each day"""
-        offline.init_notebook_mode()
-
-        offline.plot({'data': [{'y': [4, 2, 3, 4]}],
-                      'layout': {'title': 'Test Plot',
-                                 'font': dict(family='Comic Sans MS', size=16)}},
-                     auto_open=True, image='png', image_filename='plot_image',
-                     output_type='file', image_width=800, image_height=600, filename='temp-plot.png', validate=False)
-        photo = PhotoImage(name="temp-plot.png")
-        w = Label(self.top_frame, image=photo)
-        w.grid()
-        print("Here")
 
 
     def update_details(self, selection):
@@ -244,7 +247,7 @@ class new_host_dialog(SimpleDialog.Dialog):
 
 def main():
     root = Tk()
-    root.geometry('{}x{}'.format(460, 350))
+    root.geometry('{}x{}'.format(930, 500))
     app = App(root)
     root.mainloop()
     root.destroy()
