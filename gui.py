@@ -2,20 +2,19 @@ from tkinter import *
 from tkinter import simpledialog as SimpleDialog
 import backup as BackUp
 import XenAPI
-import plotly.plotly as py
-import plotly.graph_objs as go
-import plotly.offline as offline
 import matplotlib
 matplotlib.use("TkAgg")
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg, NavigationToolbar2TkAgg
 from matplotlib.figure import Figure
+import sqlite3
+from sqlite3 import Error
 
 class App():
 
     def __init__(self, master):
 
         self.master = master
-        self.setup1()
+        self.setup()
         self._vdi = []
         self._vm_uuid = []
 
@@ -30,10 +29,25 @@ class App():
 
         # Get host details and select first VDI to track
         # Consider not running automatically
+        self.connect_database()
         self.new_host()
         self.new_vdi()
 
-    def setup1(self):
+    def connect_database(self):
+        """ create a database connection to a SQLite database """
+
+        self.conn = sqlite3.connect("C:\\Users\Tom\Desktop\pythonsqlite.db")
+        print(sqlite3.version)
+        self.c = self.conn.cursor()
+
+        # Create table
+        self.c.execute('''CREATE TABLE backups
+                     (date text, vm text)''')
+        # conn.close()
+
+
+    def setup(self):
+        """Create basic frame structure"""
         self.m1 = PanedWindow(self.master, bg='red')
         self.m1.pack(fill=BOTH, expand=1)
 
@@ -65,27 +79,35 @@ class App():
 
 
     def new_host(self):
-        """Function to request details on host and VDI"""
+        """Function to request details on host and create session with host"""
         d = new_host_dialog(self.master)
         self._pool_master_address, self._username, self._password = d.result
         self._session = self.create_new_session()
 
 
     def new_vdi(self):
+        """Launch dialog to get vm/vdi. Populate page with details"""
         v = new_vdi_dialog(self.master)
         vdi, vm_uuid = v.result
         if vdi not in self._vdi:
             self._vdi.append(vdi)
         if vm_uuid not in self._vm_uuid:
             self._vm_uuid.append(vm_uuid)
+        # TEMP
         self.backup = BackUp.Backup(self._pool_master_address, self._username, self._password, self._vm_uuid[0])
         print(self.backup._get_timestamp())
         self.populate_page()
 
 
     def backup_vm(self):
-        location = self.backup.backup()
-        print(location)
+        # Backup a VM
+        #location = self.backup.backup()
+        timestamp = self.backup._get_timestamp()
+        #self.c.execute("INSERT INTO backups VALUES ({},{})".format(timestamp ,self._vm_uuid[0]))
+        self.c.execute("INSERT INTO backups VALUES ('DATE','VM')")
+        self.conn.commit()
+        print("DONE")
+
 
 
     def create_new_session(self):
@@ -110,9 +132,7 @@ class App():
 
 
     def populate_page(self):
-        """Placeholder function to populate frame with data"""
-        # Set up frames
-        # Populate pages
+        """Function to populate left frame with tracked VMs"""
         print("Populating1")
         self.VM = None
         self.vm_list = Listbox(self.left_frame)
@@ -124,6 +144,7 @@ class App():
 
 
     def update_details(self, selection):
+        """Update bottom frame with vm details"""
         vm = self._vm_uuid[selection[0]-1]
         self.details_label = Label(self.bottom_frame, text=vm)
         self.details_label.grid(row=1)
@@ -134,6 +155,7 @@ class App():
 
 
     def poll_details(self):
+        """Poll the vm list in the left frame to see when one is selected"""
         now = self.vm_list.curselection()
         print("selected1")
         print(now)
@@ -147,10 +169,12 @@ class App():
 
 
     def populate_graph(self):
+        """Populate graph in top frame"""
         pass
 
 
 class new_vdi_dialog(SimpleDialog.Dialog):
+    """Dialog for selecting new VM/VDI"""
     def create_new_session(self):
         session = XenAPI.Session("https://dt56.uk.xensource.com", ignore_ssl=True)
         session.login_with_password("root", "xenroot", "0.1", "CBT example")
