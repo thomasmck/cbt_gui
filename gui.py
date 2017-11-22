@@ -17,6 +17,7 @@ class App():
         self.setup()
         self._vdi = []
         self._vm_uuid = []
+        self.prexisting = False
 
         # Create menu bar
         menu = Menu(self.master)
@@ -36,13 +37,27 @@ class App():
     def connect_database(self):
         """ create a database connection to a SQLite database """
 
-        self.conn = sqlite3.connect("C:\\Users\Tom\Desktop\pythonsqlite.db")
+        # TODO: Make this general or give dialog option
+        self.conn = sqlite3.connect("C:\\Users\Public\Documents\pythonsqlite.db")
         print(sqlite3.version)
         self.c = self.conn.cursor()
 
         # Create table
-        self.c.execute('''CREATE TABLE backups
+        try:
+            self.c.execute('''CREATE TABLE backups
                      (date text, vm text)''')
+            self.c.execute('''CREATE TABLE tracked
+                     (vm text, vdi text)''')
+        except Exception as e:
+            if "already exists" in str(e):
+                print("Table already exists")
+                self.prexisting = True
+            else:
+                raise e
+
+        self.c.execute("SELECT date, count(date) FROM backups GROUP BY date")
+        data = self.c.fetchall()
+        print(data)
         # conn.close()
 
 
@@ -51,18 +66,15 @@ class App():
         self.m1 = PanedWindow(self.master, bg='red')
         self.m1.pack(fill=BOTH, expand=1)
 
-        #left = Label(self.m1, text="left pane", anchor='nw')
         self.left_frame = Frame(self.master, bg='cyan')
         self.m1.add(self.left_frame)
 
         self.m2 = PanedWindow(self.m1, orient=VERTICAL, bg='yellow')
         self.m1.add(self.m2)
 
-        #top = Label(self.m2, text="top pane", anchor='nw')
         self.top_frame = Frame(self.master, bg='blue')
         self.m2.add(self.top_frame)
 
-        #bottom = Label(self.m2, text="bottom pane", anchor='nw', height=100)
         self.bottom_frame = Frame(self.master, bg='green')
         self.m2.add(self.bottom_frame)
 
@@ -101,13 +113,12 @@ class App():
 
     def backup_vm(self):
         # Backup a VM
+        # TEMP
         #location = self.backup.backup()
         timestamp = self.backup._get_timestamp()
-        #self.c.execute("INSERT INTO backups VALUES ({},{})".format(timestamp ,self._vm_uuid[0]))
-        self.c.execute("INSERT INTO backups VALUES ('DATE','VM')")
+        self.c.execute("INSERT INTO backups VALUES (?,?)", (timestamp ,self._vm_uuid[0]))
         self.conn.commit()
         print("DONE")
-
 
 
     def create_new_session(self):
@@ -122,7 +133,8 @@ class App():
         print("THERE")
         f = Figure(figsize=(5, 2), dpi=100)
         a = f.add_subplot(111)
-        a.plot([1, 2, 3, 4, 5, 6, 7, 8], [5, 6, 1, 3, 8, 9, 3, 5])
+        a.plot(["A", "B", "C", "D", "E", "F", "G", "H"], [5, 6, 1, 3, 8, 9, 3, 5])
+        self.c.execute("SELECT date, count(date) FROM backups")
 
         canvas = FigureCanvasTkAgg(f, master=self.top_frame)
         #canvas.show()
