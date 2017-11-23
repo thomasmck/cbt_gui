@@ -38,14 +38,14 @@ class App():
         """ create a database connection to a SQLite database """
 
         # TODO: Make this general or give dialog option
-        self.conn = sqlite3.connect("C:\\Users\Public\Documents\pythonsqlite.db")
+        self.conn = sqlite3.connect("C:\\Users\Tom\Documents\pythonsqlite.db")
         print(sqlite3.version)
         self.c = self.conn.cursor()
 
         # Create table
         try:
             self.c.execute('''CREATE TABLE backups
-                     (date text, vm text)''')
+                     (date date, vm text)''')
             self.c.execute('''CREATE TABLE tracked
                      (vm text, vdi text)''')
         except Exception as e:
@@ -54,10 +54,6 @@ class App():
                 self.prexisting = True
             else:
                 raise e
-
-        self.c.execute("SELECT date, count(date) FROM backups GROUP BY date")
-        data = self.c.fetchall()
-        print(data)
         # conn.close()
 
 
@@ -115,8 +111,10 @@ class App():
         # Backup a VM
         # TEMP
         #location = self.backup.backup()
-        timestamp = self.backup._get_timestamp()
-        self.c.execute("INSERT INTO backups VALUES (?,?)", (timestamp ,self._vm_uuid[0]))
+        self.c.execute("SELECT date('now')")
+        timestamp = self.c.fetchall()[0][0]
+        print(timestamp)
+        self.c.execute("INSERT INTO backups VALUES (?,?)", (timestamp, self._vm_uuid[0]))
         self.conn.commit()
         print("DONE")
 
@@ -131,10 +129,18 @@ class App():
     def graph_populate(self):
         """Generate graph of how many backups have been done each day"""
         print("THERE")
+        self.c.execute("SELECT date, count(date) FROM backups GROUP BY date")
+        data = self.c.fetchall()
+        x = []
+        y = []
+        for d in data:
+            x.append(d[0])
+            y.append(int(d[1]))
+        print(x)
+        print(y)
         f = Figure(figsize=(5, 2), dpi=100)
         a = f.add_subplot(111)
-        a.plot(["A", "B", "C", "D", "E", "F", "G", "H"], [5, 6, 1, 3, 8, 9, 3, 5])
-        self.c.execute("SELECT date, count(date) FROM backups")
+        a.plot(x, y)
 
         canvas = FigureCanvasTkAgg(f, master=self.top_frame)
         #canvas.show()
