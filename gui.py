@@ -38,7 +38,7 @@ class App():
         """ create a database connection to a SQLite database """
 
         # TODO: Make this general or give dialog option
-        self.conn = sqlite3.connect("C:\\Users\Tom\Documents\pythonsqlite.db")
+        self.conn = sqlite3.connect("C:\\Users\Public\Documents\pythonsqlite.db")
         print(sqlite3.version)
         self.c = self.conn.cursor()
 
@@ -117,6 +117,7 @@ class App():
         self.c.execute("INSERT INTO backups VALUES (?,?)", (timestamp, self._vm_uuid[0]))
         self.conn.commit()
         print("DONE")
+        self.graph_populate()
 
 
     def create_new_session(self):
@@ -128,8 +129,13 @@ class App():
 
     def graph_populate(self):
         """Generate graph of how many backups have been done each day"""
+        try:
+            self.canvas.get_tk_widget().destroy()
+        except Exception as e:
+            print(e)
+            pass
         print("THERE")
-        self.c.execute("SELECT date, count(date) FROM backups GROUP BY date")
+        self.c.execute("SELECT date, count(date) FROM backups GROUP BY date ORDER BY date ASC")
         data = self.c.fetchall()
         x = []
         y = []
@@ -142,10 +148,9 @@ class App():
         a = f.add_subplot(111)
         a.plot(x, y)
 
-        canvas = FigureCanvasTkAgg(f, master=self.top_frame)
-        #canvas.show()
-        canvas.get_tk_widget().grid()
-        canvas.draw()
+        self.canvas = FigureCanvasTkAgg(f, master=self.top_frame)
+        self.canvas.get_tk_widget().grid()
+        self.canvas.draw()
         print("HERE")
 
 
