@@ -3,6 +3,8 @@ from tkinter import simpledialog as SimpleDialog
 import backup as BackUp
 import XenAPI
 import matplotlib
+import numpy
+import time
 matplotlib.use("TkAgg")
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg, NavigationToolbar2TkAgg
 from matplotlib.figure import Figure
@@ -38,7 +40,7 @@ class App():
         """ create a database connection to a SQLite database """
 
         # TODO: Make this general or give dialog option
-        self.conn = sqlite3.connect("C:\\Users\Public\Documents\pythonsqlite.db")
+        self.conn = sqlite3.connect("C:\\Users\Tom\Documents\pythonsqlite.db")
         print(sqlite3.version)
         self.c = self.conn.cursor()
 
@@ -135,22 +137,28 @@ class App():
             print(e)
             pass
         print("THERE")
-        self.c.execute("SELECT date, count(date) FROM backups GROUP BY date ORDER BY date ASC")
+        self.c.execute("SELECT date, count(date) FROM backups WHERE date BETWEEN datetime('now', '-6 days') AND datetime('now', 'localtime') GROUP BY date ORDER BY date ASC")
         data = self.c.fetchall()
         x = []
         y = []
         for d in data:
+            print(time.strftime("%Y-%m-%d"))
             x.append(d[0])
             y.append(int(d[1]))
-        print(x)
-        print(y)
+
+        ind = numpy.array(x)
+        width = .5
+
         f = Figure(figsize=(5, 2), dpi=100)
         a = f.add_subplot(111)
-        a.plot(x, y)
+
+        rects1 = a.bar(ind, y, width)
+        #a.plot(x, y)
 
         self.canvas = FigureCanvasTkAgg(f, master=self.top_frame)
+        self.canvas.show()
         self.canvas.get_tk_widget().grid()
-        self.canvas.draw()
+        #self.canvas.draw()
         print("HERE")
 
 
