@@ -30,11 +30,25 @@ class App():
         filemenu.add_command(label="Backup", command=self.backup_vm)
         filemenu.add_command(label="Exit", command=quit)
 
-        # Get host details and select first VDI to track
-        # Consider not running automatically
         self.connect_database()
-        self.new_host()
-        self.new_vdi()
+        if not self.prexisting:
+            self.new_host()
+            self.new_vdi()
+        else:
+            self.get_existing_details()
+        self._session = self.create_new_session()
+        self.populate_page()
+
+    def get_existing_details(self):
+        self.c.execute("SELECT vm FROM tracked")
+        vms = self.c.fetchall()
+        for vm in vms:
+            self._vm_uuid.append(vm[0])
+        self.c.execute("SELECT host, username, password FROM host")
+        host_details = self.c.fetchall()
+        self._pool_master_address = host_details[0][0]
+        self._username = host_details[0][1]
+        self._password = host_details[0][2]
 
     def connect_database(self):
         """ create a database connection to a SQLite database """
@@ -49,7 +63,9 @@ class App():
             self.c.execute('''CREATE TABLE backups
                      (date date, vm text)''')
             self.c.execute('''CREATE TABLE tracked
-                     (vm text, vdi text)''')
+                     (vm text)''')
+            self.c.execute('''CREATE TABLE host
+                     (host text, username text, password text)''')
         except Exception as e:
             if "already exists" in str(e):
                 print("Table already exists")
@@ -58,25 +74,24 @@ class App():
                 raise e
         # conn.close()
 
-
     def setup(self):
         """Create basic frame structure"""
-        self.m1 = PanedWindow(self.master, bg='red')
+        self.m1 = PanedWindow(self.master, bg='black')
         self.m1.pack(fill=BOTH, expand=1)
 
-        self.left_frame = Frame(self.master, bg='cyan')
+        self.left_frame = Frame(self.master, bg='white')
         self.m1.add(self.left_frame)
 
-        self.m2 = PanedWindow(self.m1, orient=VERTICAL, bg='yellow')
+        self.m2 = PanedWindow(self.m1, orient=VERTICAL, bg='black')
         self.m1.add(self.m2)
 
-        self.top_frame = Frame(self.master, bg='blue')
+        self.top_frame = Frame(self.master, bg='white')
         self.m2.add(self.top_frame)
 
-        self.bottom_frame = Frame(self.master, bg='green')
+        self.bottom_frame = Frame(self.master, bg='white')
         self.m2.add(self.bottom_frame)
 
-        Label(self.left_frame, text="VDI", width=30).grid(row=0, sticky='W')
+        Label(self.left_frame, text="VM", width=30).grid(row=0, sticky='W')
         Label(self.top_frame, text="Graphs", width=100).grid(row=0, sticky='W')
         Label(self.bottom_frame, text="Details", width=100).grid(row=0, sticky='W')
 
@@ -92,33 +107,32 @@ class App():
         """Function to request details on host and create session with host"""
         d = new_host_dialog(self.master)
         self._pool_master_address, self._username, self._password = d.result
-        self._session = self.create_new_session()
+        self.c.execute("INSERT INTO host VALUES (?,?,?)", (self._pool_master_address, self._username, self._password))
+        self.conn.commit()
 
 
     def new_vdi(self):
         """Launch dialog to get vm/vdi. Populate page with details"""
-        v = new_vdi_dialog(self.master)
-        vdi, vm_uuid = v.result
-        if vdi not in self._vdi:
-            self._vdi.append(vdi)
+        v = new_vm_dialog(self.master)
+        vm_uuid = v.result
         if vm_uuid not in self._vm_uuid:
             self._vm_uuid.append(vm_uuid)
+            self.c.execute("INSERT INTO tracked VALUES (?)", (vm_uuid,))
+            self.conn.commit()
         # TEMP
-        self.backup = BackUp.Backup(self._pool_master_address, self._username, self._password, self._vm_uuid[0])
-        print(self.backup._get_timestamp())
         self.populate_page()
 
 
     def backup_vm(self):
         # Backup a VM
-        # TEMP
-        #location = self.backup.backup()
+        now = self.vm_list.curselection()
+        vm = self._vm_uuid[now[0]]
         self.c.execute("SELECT date('now')")
         timestamp = self.c.fetchall()[0][0]
-        print(timestamp)
-        self.c.execute("INSERT INTO backups VALUES (?,?)", (timestamp, self._vm_uuid[0]))
+        self.c.execute("INSERT INTO backups VALUES (?,?)", (timestamp, vm))
         self.conn.commit()
-        print("DONE")
+        self.backup = BackUp.Backup(self._pool_master_address, self._username, self._password, vm)
+        location = self.backup.backup()
         self.graph_populate()
 
 
@@ -161,28 +175,40 @@ class App():
         #self.canvas.draw()
         print("HERE")
 
+    def get_vm_name_label(self, uuid):
+        ref = self._session.xenapi.VM.get_by_uuid(uuid)
+        name = self._session.xenapi.VM.get_name_label(ref)
+        return name
+
 
     def populate_page(self):
         """Function to populate left frame with tracked VMs"""
-        print("Populating1")
         self.VM = None
         self.vm_list = Listbox(self.left_frame)
         self.vm_list.grid(row=1)
         for v in self._vm_uuid:
-            self.vm_list.insert(END, v)
+            v_name = self.get_vm_name_label(v)
+            self.vm_list.insert(END, v_name)
         self.graph_populate()
         self.poll_details()
 
 
     def update_details(self, selection):
         """Update bottom frame with vm details"""
-        vm = self._vm_uuid[selection[0]-1]
-        self.details_label = Label(self.bottom_frame, text=vm)
-        self.details_label.grid(row=1)
-        ref = self._session.xenapi.VM.get_by_uuid(vm)
-        name = self._session.xenapi.VM.get_name_label(ref)
-        self.name_label = Label(self.bottom_frame, text=name)
-        self.name_label.grid(row=2)
+        vm = self._vm_uuid[selection[0]]
+        try:
+            self.details_label.destroy()
+            self.name_label.destroy()
+        except:
+            pass
+        self.details_label = Label(self.bottom_frame, text=vm, anchor=W)
+        self.details_label.grid(row=1, sticky='W')
+        name = self.get_vm_name_label(vm)
+        self.name_label = Label(self.bottom_frame, text=name, anchor=W)
+        self.name_label.grid(row=2, sticky='W')
+        self.backup = BackUp.Backup(self._pool_master_address, self._username, self._password, vm)
+        vdis = self.backup._get_vdis_of_vm(vm)
+        print(vdis)
 
 
     def poll_details(self):
@@ -204,7 +230,7 @@ class App():
         pass
 
 
-class new_vdi_dialog(SimpleDialog.Dialog):
+class new_vm_dialog(SimpleDialog.Dialog):
     """Dialog for selecting new VM/VDI"""
     def create_new_session(self):
         session = XenAPI.Session("https://dt56.uk.xensource.com", ignore_ssl=True)
@@ -214,65 +240,29 @@ class new_vdi_dialog(SimpleDialog.Dialog):
     def body(self, master):
         self._session = self.create_new_session()
         Label(master, text="VM").grid(row=0)
-        Label(master, text="VDI").grid(row=1)
 
-        self.sr_listbox = Listbox(master)
-        self.sr_listbox.grid(row=0, column=1)
-        self.sr_listbox.insert(END, "Select an SR")
+        self.vm_listbox = Listbox(master)
+        self.vm_listbox.grid(row=0, column=1)
+        self.vm_listbox.insert(END, "Select a VM")
 
         VMs = self._session.xenapi.VM.get_all()
         self.VMs = []
         for VM in VMs:
             if not self._session.xenapi.VM.get_is_a_template(VM):
-                print("remove")
                 self.VMs.append(VM)
 
         for VM in self.VMs:
             VM_name_label = self._session.xenapi.VM.get_name_label(VM)
-            self.sr_listbox.insert(END, VM_name_label)
+            self.vm_listbox.insert(END, VM_name_label)
         self.VM = None
-
-        self.vdi_listbox = Listbox(master)
-        self.vdi_listbox.grid(row=1, column=1)
-        self.vdi_listbox.insert(END, "Select a VDI")
-
-        self.poll()
 
 
     def apply(self):
-        vdi = self.vdi_listbox.curselection()
-        print(vdi)
-        print(self.VDIs)
-        print(vdi[0]-1)
-        first = self.VDIs[vdi[0] - 1]
-        second =  self._session.xenapi.VM.get_uuid(self.VMs[self.VM[0]-1])
-        self.result = first, second
-
-
-    def poll(self):
-        now = self.sr_listbox.curselection()
-        print("selected")
-        print(now)
-        if now != self.VM:
-            print("now")
-            if now:
-                print("test")
-                self.list_has_changed(now)
-                self.VM = now
-        self.after(250, self.poll)
-
-
-    def list_has_changed(self, selection):
-        self.vdi_listbox.delete(0,END)
-        self.vdi_listbox.insert(END, "Select a VDI")
-
-        VBDs = self._session.xenapi.VM.get_VBDs(self.VMs[selection[0]-1])
-        self.VDIs = []
-        for VBD in VBDs:
-            self.VDIs.append(self._session.xenapi.VBD.get_VDI(VBD))
-        for VDI in self.VDIs:
-            VDI_name_label = self._session.xenapi.VDI.get_name_label(VDI)
-            self.vdi_listbox.insert(END, VDI_name_label)
+        vm = self.vm_listbox.curselection()
+        print("VM")
+        print(vm)
+        vm_uuid =  self._session.xenapi.VM.get_uuid(self.VMs[vm[0]-1])
+        self.result = vm_uuid
 
 
 class new_host_dialog(SimpleDialog.Dialog):
