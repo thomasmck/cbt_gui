@@ -54,7 +54,7 @@ class App():
         """ create a database connection to a SQLite database """
 
         # TODO: Make this general or give dialog option
-        self.conn = sqlite3.connect("C:\\Users\Tom\Documents\pythonsqlite.db")
+        self.conn = sqlite3.connect("C:\\Users\Public\Documents\pythonsqlite.db")
         print(sqlite3.version)
         self.c = self.conn.cursor()
 
@@ -109,6 +109,7 @@ class App():
         self._pool_master_address, self._username, self._password = d.result
         self.c.execute("INSERT INTO host VALUES (?,?,?)", (self._pool_master_address, self._username, self._password))
         self.conn.commit()
+        self._session = self.create_new_session()
 
 
     def new_vdi(self):
@@ -132,6 +133,7 @@ class App():
         self.c.execute("INSERT INTO backups VALUES (?,?)", (timestamp, vm))
         self.conn.commit()
         self.backup = BackUp.Backup(self._pool_master_address, self._username, self._password, vm)
+        # Make a background task otherwise gui cannot be used
         location = self.backup.backup()
         self.graph_populate()
 
@@ -151,6 +153,7 @@ class App():
             print(e)
             pass
         print("THERE")
+        # Add 0 entries for empty days
         self.c.execute("SELECT date, count(date) FROM backups WHERE date BETWEEN datetime('now', '-6 days') AND datetime('now', 'localtime') GROUP BY date ORDER BY date ASC")
         data = self.c.fetchall()
         x = []
@@ -163,6 +166,7 @@ class App():
         ind = numpy.array(x)
         width = .5
 
+        # Need to add axis titles and sort out date overlap
         f = Figure(figsize=(5, 2), dpi=100)
         a = f.add_subplot(111)
 
@@ -196,19 +200,27 @@ class App():
     def update_details(self, selection):
         """Update bottom frame with vm details"""
         vm = self._vm_uuid[selection[0]]
+        vm_ref = self._session.xenapi.VM.get_by_uuid(vm)
         try:
             self.details_label.destroy()
             self.name_label.destroy()
         except:
             pass
+        # Add row titles
         self.details_label = Label(self.bottom_frame, text=vm, anchor=W)
         self.details_label.grid(row=1, sticky='W')
         name = self.get_vm_name_label(vm)
         self.name_label = Label(self.bottom_frame, text=name, anchor=W)
         self.name_label.grid(row=2, sticky='W')
         self.backup = BackUp.Backup(self._pool_master_address, self._username, self._password, vm)
-        vdis = self.backup._get_vdis_of_vm(vm)
-        print(vdis)
+        # This call is quite slow, consider storing info in DB instead
+        vdis = self.backup._get_vdis_of_vm(vm_ref)
+        vdi_string = ""
+        for vdi in vdis:
+            vdi_string += vdi + ";"
+        self.vdi_label = Label(self.bottom_frame, text=vdi_string, anchor=W)
+        self.vdi_label.grid(row=3, sticky='W')
+        # Add info on last backup, total backups, etc
 
 
     def poll_details(self):
