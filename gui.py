@@ -26,7 +26,7 @@ class App():
         self.master.config(menu=menu)
         filemenu = Menu(menu)
         menu.add_cascade(label="File", menu=filemenu)
-        filemenu.add_command(label="New", command=self.new_vdi)
+        filemenu.add_command(label="New VM", command=self.new_vdi)
         filemenu.add_command(label="Backup", command=self.backup_vm)
         filemenu.add_command(label="Exit", command=quit)
 
@@ -54,7 +54,7 @@ class App():
         """ create a database connection to a SQLite database """
 
         # TODO: Make this general or give dialog option
-        self.conn = sqlite3.connect("C:\\Users\Public\Documents\pythonsqlite.db")
+        self.conn = sqlite3.connect("C:\\Users\Tom\Documents\pythonsqlite.db")
         print(sqlite3.version)
         self.c = self.conn.cursor()
 
@@ -171,12 +171,14 @@ class App():
         a = f.add_subplot(111)
 
         rects1 = a.bar(ind, y, width)
-        #a.plot(x, y)
+
+        a.set_title('Backup Frequency')
+        a.set_xlabel('Date')
+        a.set_ylabel('Number of Backups')
 
         self.canvas = FigureCanvasTkAgg(f, master=self.top_frame)
         self.canvas.show()
         self.canvas.get_tk_widget().grid()
-        #self.canvas.draw()
         print("HERE")
 
     def get_vm_name_label(self, uuid):
@@ -204,23 +206,35 @@ class App():
         try:
             self.details_label.destroy()
             self.name_label.destroy()
+            self.vdi_label.destroy()
+            self.date_label.destroy()
         except:
             pass
         # Add row titles
-        self.details_label = Label(self.bottom_frame, text=vm, anchor=W)
+        vm_string = "VM uuid: {}".format(vm)
+        self.details_label = Label(self.bottom_frame, text=vm_string, anchor=W)
         self.details_label.grid(row=1, sticky='W')
         name = self.get_vm_name_label(vm)
-        self.name_label = Label(self.bottom_frame, text=name, anchor=W)
+        name_string = "Name label: {}".format(name)
+        self.name_label = Label(self.bottom_frame, text=name_string, anchor=W)
         self.name_label.grid(row=2, sticky='W')
         self.backup = BackUp.Backup(self._pool_master_address, self._username, self._password, vm)
         # This call is quite slow, consider storing info in DB instead
         vdis = self.backup._get_vdis_of_vm(vm_ref)
-        vdi_string = ""
+        vdi_string = "VDIs: "
         for vdi in vdis:
             vdi_string += vdi + ";"
         self.vdi_label = Label(self.bottom_frame, text=vdi_string, anchor=W)
         self.vdi_label.grid(row=3, sticky='W')
         # Add info on last backup, total backups, etc
+        self.c.execute("SELECT date FROM backups WHERE vm = (?) ORDER BY date DESC", (vm,))
+        data = self.c.fetchall()
+        print("DATA")
+        if data:
+          print(data[0][0])
+          backup_date = "Last backup date: {}".format(data[0][0])
+          self.date_label = Label(self.bottom_frame, text=backup_date, anchor=W)
+          self.date_label.grid(row=4, sticky='W')
 
 
     def poll_details(self):
