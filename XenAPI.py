@@ -175,6 +175,8 @@ class Session(xmlrpclib.ServerProxy):
         try:
             result = _parse_result(
                 getattr(self, 'session.%s' % method)(*params))
+            print("HERE")
+            print(result)
             if result is _RECONNECT_AND_RETRY:
                 raise xmlrpclib.Fault(
                     500, 'Received SESSION_INVALID when logging in')

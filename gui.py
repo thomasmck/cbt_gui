@@ -9,7 +9,7 @@ matplotlib.use("TkAgg")
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg, NavigationToolbar2TkAgg
 from matplotlib.figure import Figure
 import sqlite3
-from sqlite3 import Error
+import threading
 
 class App():
 
@@ -25,16 +25,22 @@ class App():
         menu = Menu(self.master)
         self.master.config(menu=menu)
         filemenu = Menu(menu)
+        
         menu.add_cascade(label="File", menu=filemenu)
-        filemenu.add_command(label="New VM", command=self.new_vdi)
+        filemenu.add_command(label="New VM", command=self.new_vm)
         filemenu.add_command(label="Backup", command=self.backup_vm)
         filemenu.add_command(label="Exit", command=quit)
 
+        # If we have existing settings then gather them
+        # TODO: If we have an error when connecting the first time we get stuck in loop till db is deleted
         self.connect_database()
         if not self.prexisting:
+            # Get information on host we are connecting to
             self.new_host()
-            self.new_vdi()
+            # Get information on vm to track
+            self.new_vm()
         else:
+            # If pre-existing get details from db
             self.get_existing_details()
         self._session = self.create_new_session()
         self.populate_page()
@@ -72,6 +78,7 @@ class App():
                 self.prexisting = True
             else:
                 raise e
+        # TODO: Make sure we are closing connection when necessary 
         # conn.close()
 
     def setup(self):
@@ -112,7 +119,7 @@ class App():
         self._session = self.create_new_session()
 
 
-    def new_vdi(self):
+    def new_vm(self):
         """Launch dialog to get vm/vdi. Populate page with details"""
         v = new_vm_dialog(self.master)
         vm_uuid = v.result
@@ -132,7 +139,8 @@ class App():
         timestamp = self.c.fetchall()[0][0]
         self.c.execute("INSERT INTO backups VALUES (?,?)", (timestamp, vm))
         self.conn.commit()
-        self.backup = BackUp.Backup(self._pool_master_address, self._username, self._password, vm)
+        #def backup(master, vm, pwd, uname='root', tls=True):
+        self.backup = BackUp.backup(self._pool_master_address, vm, self._password, tls=False)
         # Make a background task otherwise gui cannot be used
         location = self.backup.backup()
         self.graph_populate()
@@ -218,7 +226,7 @@ class App():
         name_string = "Name label: {}".format(name)
         self.name_label = Label(self.bottom_frame, text=name_string, anchor=W)
         self.name_label.grid(row=2, sticky='W')
-        self.backup = BackUp.Backup(self._pool_master_address, self._username, self._password, vm)
+        self.backup = BackUp.backup(self._pool_master_address, vm, self._password, tls=False)
         # This call is quite slow, consider storing info in DB instead
         vdis = self.backup._get_vdis_of_vm(vm_ref)
         vdi_string = "VDIs: "
@@ -259,7 +267,8 @@ class App():
 class new_vm_dialog(SimpleDialog.Dialog):
     """Dialog for selecting new VM/VDI"""
     def create_new_session(self):
-        session = XenAPI.Session("https://dt56.uk.xensource.com", ignore_ssl=True)
+        #TO-DO: find way to pass variables to this
+        session = XenAPI.Session("https://venamis.uk.xensource.com", ignore_ssl=True)
         session.login_with_password("root", "xenroot", "0.1", "CBT example")
         return session
 
@@ -325,55 +334,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
-
-"""
-    def setup2(self):
-        # Create frame
-        top_frame = Frame(self.master, bg='cyan', width=300, height=100, pady=3, padx=3)
-        left_frame = Frame(self.master, bg='yellow', width=160, height=350, padx=3)
-        btm_frame = Frame(self.master, bg='red', width=300, height=250, pady=3, padx=3)
-
-        # layout all of the main containers
-        self.master.grid_rowconfigure(1, weight=1)
-        self.master.grid_columnconfigure(1, weight=1)
-
-        top_frame.grid(row=0, column=1, sticky="nsew")
-        left_frame.grid(rowspan=2, row=0, sticky="nsew")
-        btm_frame.grid(row=1, column=1, sticky="nsew")
-
-        # Create widgets
-        name_label = Label(top_frame, text="Dummy text")
-        vdi_label = Label(left_frame, text="VDIs")
-        detail_label = Label(btm_frame, text="Details")
-
-        # Layout the widgets
-        name_label.grid()
-        vdi_label.grid()
-        detail_label.grid()
-
-class option_dialog(SimpleDialog.Dialog):
-    # TODO: Make generic dialog class
-
-    def body(self, master):
-        row = 0
-        self.options = options
-        unique_name = ""
-        for key, value in self.options.iteritems():
-            #Create checkbox options for which one to track
-            unique_name = value.replace(" ","")
-            Label(master, text=value).grid(row=row)
-            setattr(self, unique_name, Entry(master))
-            y = getattr(self, unique_name)
-            y.grid(row=row, column=1)
-            row += 1
-        print(self.options)
-        return getattr(self, unique_name)  # initial focus
-
-    def apply(self):
-        self.results = []
-        for key, value in self.options.iteritems():
-            unique_name = value.replace(" ", "")
-            y = getattr(self, unique_name)
-            if y.get():
-                self.results.append(key)"""
