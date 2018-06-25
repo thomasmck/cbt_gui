@@ -21,28 +21,34 @@ class App():
         self._vm_uuid = []
         self.prexisting = False
 
+        # TODO: Move this stuff into a function
         # Create menu bar
         menu = Menu(self.master)
         self.master.config(menu=menu)
         filemenu = Menu(menu)
         
         menu.add_cascade(label="File", menu=filemenu)
+        filemenu.add_command(label="New host", command=self.new_host)
         filemenu.add_command(label="New VM", command=self.new_vm)
         filemenu.add_command(label="Backup", command=self.backup_vm)
         filemenu.add_command(label="Exit", command=quit)
 
         # If we have existing settings then gather them
         # TODO: If we have an error when connecting the first time we get stuck in loop till db is deleted
+        # TODO: Create class to manage database connections
         self.connect_database()
         if not self.prexisting:
+            # TODO: Temp changes
             # Get information on host we are connecting to
-            self.new_host()
+            #self.new_host()
             # Get information on vm to track
-            self.new_vm()
+            #self.new_vm()
+            pass
         else:
             # If pre-existing get details from db
             self.get_existing_details()
-        self._session = self.create_new_session()
+        # TODO: Create class to manage sessions
+        #self._session = self.create_new_session()
         self.populate_page()
 
     def get_existing_details(self):
@@ -50,6 +56,7 @@ class App():
         vms = self.c.fetchall()
         for vm in vms:
             self._vm_uuid.append(vm[0])
+        # TODO: Create class/function to handle db calls
         self.c.execute("SELECT host, username, password FROM host")
         host_details = self.c.fetchall()
         self._pool_master_address = host_details[0][0]
@@ -109,7 +116,6 @@ class App():
         details = {}
         print(details)
 
-
     def new_host(self):
         """Function to request details on host and create session with host"""
         d = new_host_dialog(self.master)
@@ -118,10 +124,9 @@ class App():
         self.conn.commit()
         self._session = self.create_new_session()
 
-
     def new_vm(self):
         """Launch dialog to get vm/vdi. Populate page with details"""
-        v = new_vm_dialog(self.master)
+        v = new_vm_dialog(self.master, self._pool_master_address)
         vm_uuid = v.result
         if vm_uuid not in self._vm_uuid:
             self._vm_uuid.append(vm_uuid)
@@ -129,7 +134,6 @@ class App():
             self.conn.commit()
         # TEMP
         self.populate_page()
-
 
     def backup_vm(self):
         # Backup a VM
@@ -226,14 +230,17 @@ class App():
         name_string = "Name label: {}".format(name)
         self.name_label = Label(self.bottom_frame, text=name_string, anchor=W)
         self.name_label.grid(row=2, sticky='W')
-        self.backup = BackUp.backup(self._pool_master_address, vm, self._password, tls=False)
-        # This call is quite slow, consider storing info in DB instead
+        # BackupConfig(session, back dir, use_tls)
+        self.backup = BackUp.BackupConfig(self._session, "./", use_tls=False)
+        # This call is now obsolete - should cache all the information about a VM
+        """
         vdis = self.backup._get_vdis_of_vm(vm_ref)
         vdi_string = "VDIs: "
         for vdi in vdis:
             vdi_string += vdi + ";"
         self.vdi_label = Label(self.bottom_frame, text=vdi_string, anchor=W)
         self.vdi_label.grid(row=3, sticky='W')
+        """
         # Add info on last backup, total backups, etc
         self.c.execute("SELECT date FROM backups WHERE vm = (?) ORDER BY date DESC", (vm,))
         data = self.c.fetchall()
@@ -266,9 +273,13 @@ class App():
 
 class new_vm_dialog(SimpleDialog.Dialog):
     """Dialog for selecting new VM/VDI"""
+
+    def __init__(self, host):
+        self.host = host
+
     def create_new_session(self):
         #TO-DO: find way to pass variables to this
-        session = XenAPI.Session("https://venamis.uk.xensource.com", ignore_ssl=True)
+        session = XenAPI.Session("https://" + self.host, ignore_ssl=True)
         session.login_with_password("root", "xenroot", "0.1", "CBT example")
         return session
 
@@ -290,7 +301,6 @@ class new_vm_dialog(SimpleDialog.Dialog):
             VM_name_label = self._session.xenapi.VM.get_name_label(VM)
             self.vm_listbox.insert(END, VM_name_label)
         self.VM = None
-
 
     def apply(self):
         vm = self.vm_listbox.curselection()
@@ -323,6 +333,40 @@ class new_host_dialog(SimpleDialog.Dialog):
         second = self.e2.get()
         third = self.e3.get()
         self.result = first, second, third  # or something
+
+
+class XAPI(object):
+    _xapi_session = None
+
+    @classmethod
+    def connect(cls, module, disconnect_atexit=True):
+        if cls._xapi_session is not None:
+            return cls._xapi_session
+
+        hostname = module.params['hostname']
+        username = module.params['username']
+        password = module.params['password']
+        ignore_ssl = not module.params['validate_certs']
+
+        if hostname == 'localhost':
+            cls._xapi_session = XenAPI.xapi_local()
+            username = ''
+            password = ''
+        else:
+            cls._xapi_session = XenAPI.Session("http://%s/" % hostname, ignore_ssl=ignore_ssl)
+
+            if not password:
+                password = ''
+
+        try:
+            cls._xapi_session.login_with_password(username, password, '1.0', 'xenserver_guest.py')
+        except XenAPI.Failure as f:
+            module.fail_json(msg="Unable to log on to XenServer at %s as %s: %s" % (hostname, username, f.details))
+
+        # Disabling atexit should be used in special cases only.
+        if disconnect_atexit:
+            atexit.register(cls._xapi_session.logout)
+        return cls._xapi_session
 
 
 def main():
