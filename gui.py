@@ -13,7 +13,7 @@ import threading
 
 class App():
 
-    def __init__(self, master):
+    def __init__(self, master, session):
 
         self.master = master
         self.setup()
@@ -48,16 +48,16 @@ class App():
             # If pre-existing get details from db
             self.get_existing_details()
         # TODO: Create class to manage sessions
-        #self._session = self.create_new_session()
+        self._session = session
         self.populate_page()
 
     def get_existing_details(self):
-        self.c.execute("SELECT vm FROM tracked")
+        self.c.execute("SELECT vm FROM vms")
         vms = self.c.fetchall()
         for vm in vms:
             self._vm_uuid.append(vm[0])
         # TODO: Create class/function to handle db calls
-        self.c.execute("SELECT host, username, password FROM host")
+        self.c.execute("SELECT host, username, password FROM hosts")
         host_details = self.c.fetchall()
         self._pool_master_address = host_details[0][0]
         self._username = host_details[0][1]
@@ -73,11 +73,11 @@ class App():
 
         # Create table
         try:
+            self.c.execute('''CREATE TABLE vms
+                     (vm_uuid uniqueidentifier primary key, vm_name text, record text, tracked bool)''')
             self.c.execute('''CREATE TABLE backups
-                     (date date, vm text)''')
-            self.c.execute('''CREATE TABLE tracked
-                     (vm text)''')
-            self.c.execute('''CREATE TABLE host
+                     (date date, FOREIGN KEY(vm_uuid) REFERENCES vms(vm_uuid))''')
+            self.c.execute('''CREATE TABLE hosts
                      (host text, username text, password text)''')
         except Exception as e:
             if "already exists" in str(e):
@@ -120,7 +120,7 @@ class App():
         """Function to request details on host and create session with host"""
         d = new_host_dialog(self.master)
         self._pool_master_address, self._username, self._password = d.result
-        self.c.execute("INSERT INTO host VALUES (?,?,?)", (self._pool_master_address, self._username, self._password))
+        self.c.execute("INSERT INTO hosts VALUES (?,?,?)", (self._pool_master_address, self._username, self._password))
         self.conn.commit()
         self._session = self.create_new_session()
 
@@ -130,7 +130,7 @@ class App():
         vm_uuid = v.result
         if vm_uuid not in self._vm_uuid:
             self._vm_uuid.append(vm_uuid)
-            self.c.execute("INSERT INTO tracked VALUES (?)", (vm_uuid,))
+            self.c.execute("INSERT INTO vms VALUES (?)", (vm_uuid,))
             self.conn.commit()
         # TEMP
         self.populate_page()
@@ -274,8 +274,9 @@ class App():
 class new_vm_dialog(SimpleDialog.Dialog):
     """Dialog for selecting new VM/VDI"""
 
-    def __init__(self, host):
+    def __init__(self, master, host):
         self.host = host
+        super().__init__(master)
 
     def create_new_session(self):
         #TO-DO: find way to pass variables to this
@@ -339,14 +340,14 @@ class XAPI(object):
     _xapi_session = None
 
     @classmethod
-    def connect(cls, module, disconnect_atexit=True):
+    def connect(cls, disconnect_atexit=True):
         if cls._xapi_session is not None:
             return cls._xapi_session
 
-        hostname = module.params['hostname']
-        username = module.params['username']
-        password = module.params['password']
-        ignore_ssl = not module.params['validate_certs']
+        hostname = "lcy2-dt112.xenrt.citrite.net"
+        username = "root"
+        password = "xenroot"
+        ignore_ssl = True
 
         if hostname == 'localhost':
             cls._xapi_session = XenAPI.xapi_local()
@@ -363,18 +364,19 @@ class XAPI(object):
         except XenAPI.Failure as f:
             module.fail_json(msg="Unable to log on to XenServer at %s as %s: %s" % (hostname, username, f.details))
 
-        # Disabling atexit should be used in special cases only.
-        if disconnect_atexit:
-            atexit.register(cls._xapi_session.logout)
         return cls._xapi_session
 
 
 def main():
-    root = Tk()
-    root.geometry('{}x{}'.format(930, 500))
-    app = App(root)
-    root.mainloop()
-    root.destroy()
+    try:
+        session = XAPI.connect()
+        root = Tk()
+        root.geometry('{}x{}'.format(930, 500))
+        app = App(root, session)
+        root.mainloop()
+    finally:
+        root.destroy()
+        session.xenapi.logout()
 
 if __name__ == "__main__":
     main()
