@@ -52,7 +52,7 @@ class App():
         self.populate_page()
 
     def get_existing_details(self):
-        self.c.execute("SELECT vm FROM vms")
+        self.c.execute("SELECT vm_uuid FROM vms")
         vms = self.c.fetchall()
         for vm in vms:
             self._vm_uuid.append(vm[0])
@@ -74,11 +74,13 @@ class App():
         # Create table
         try:
             self.c.execute('''CREATE TABLE vms
-                     (vm_uuid uniqueidentifier primary key, vm_name text, record text, tracked bool)''')
+                     (vm_id integer primary key, vm_uuid text, vm_name text, record text, tracked bool)''')
             self.c.execute('''CREATE TABLE backups
-                     (date date, FOREIGN KEY(vm_uuid) REFERENCES vms(vm_uuid))''')
+                     (date date, vm_id integer, FOREIGN KEY(vm_id) REFERENCES vms(vm_id))''')
             self.c.execute('''CREATE TABLE hosts
                      (host text, username text, password text)''')
+            self.c.execute('''CREATE TABLE vdis
+                                 (vdi_id integer primary key, vdi_uuid text, vdi_name text, record text, vm_id, FOREIGN KEY(vm_id) REFERENCES vms(vm_id))''')
         except Exception as e:
             if "already exists" in str(e):
                 print("Table already exists")
@@ -120,7 +122,7 @@ class App():
         """Function to request details on host and create session with host"""
         d = new_host_dialog(self.master)
         self._pool_master_address, self._username, self._password = d.result
-        self.c.execute("INSERT INTO hosts VALUES (?,?,?)", (self._pool_master_address, self._username, self._password))
+        self.c.execute("INSERT INTO hosts VALUES (?,?,?)", (self._pool_master_address, self._username, self._password,))
         self.conn.commit()
         self._session = self.create_new_session()
 
@@ -128,9 +130,14 @@ class App():
         """Launch dialog to get vm/vdi. Populate page with details"""
         v = new_vm_dialog(self.master, self._pool_master_address)
         vm_uuid = v.result
+        # TODO: should get rid of self._vm_uuid entirely
         if vm_uuid not in self._vm_uuid:
             self._vm_uuid.append(vm_uuid)
-            self.c.execute("INSERT INTO vms VALUES (?)", (vm_uuid,))
+            ref = self._session.xenapi.VM.get_by_uuid(vm_uuid)
+            name_label = self._session.xenapi.VM.get_name_label(ref)
+            record_string = str(self._session.xenapi.VM.get_record(ref))
+            # (vm_id integer primary key, vm_uuid text, vm_name text, record text, tracked bool)
+            self.c.execute("INSERT INTO vms(vm_uuid, vm_name, record, tracked) VALUES (?,?,?,?)", (vm_uuid, name_label, record_string, "True"))
             self.conn.commit()
         # TEMP
         self.populate_page()
@@ -215,12 +222,14 @@ class App():
         """Update bottom frame with vm details"""
         vm = self._vm_uuid[selection[0]]
         vm_ref = self._session.xenapi.VM.get_by_uuid(vm)
+        # Attempt to clean up existing entries before we create the new ones
         try:
             self.details_label.destroy()
             self.name_label.destroy()
             self.vdi_label.destroy()
             self.date_label.destroy()
-        except:
+        except Exception as e:
+            print(e)
             pass
         # Add row titles
         vm_string = "VM uuid: {}".format(vm)
@@ -240,7 +249,6 @@ class App():
             vdi_string += vdi + ";"
         self.vdi_label = Label(self.bottom_frame, text=vdi_string, anchor=W)
         self.vdi_label.grid(row=3, sticky='W')
-        """
         # Add info on last backup, total backups, etc
         self.c.execute("SELECT date FROM backups WHERE vm = (?) ORDER BY date DESC", (vm,))
         data = self.c.fetchall()
@@ -250,6 +258,7 @@ class App():
           backup_date = "Last backup date: {}".format(data[0][0])
           self.date_label = Label(self.bottom_frame, text=backup_date, anchor=W)
           self.date_label.grid(row=4, sticky='W')
+        """
 
 
     def poll_details(self):
@@ -292,11 +301,7 @@ class new_vm_dialog(SimpleDialog.Dialog):
         self.vm_listbox.grid(row=0, column=1)
         self.vm_listbox.insert(END, "Select a VM")
 
-        VMs = self._session.xenapi.VM.get_all()
-        self.VMs = []
-        for VM in VMs:
-            if not self._session.xenapi.VM.get_is_a_template(VM):
-                self.VMs.append(VM)
+        self.VMs = [vm for vm in self._session.xenapi.VM.get_all() if not self._session.xenapi.VM.get_is_a_template(vm)]
 
         for VM in self.VMs:
             VM_name_label = self._session.xenapi.VM.get_name_label(VM)
