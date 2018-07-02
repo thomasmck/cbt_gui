@@ -126,6 +126,21 @@ class App():
         self.conn.commit()
         self._session = self.create_new_session()
 
+    def new_vdis(self, vm_uuid):
+        vm_ref = self._session.xenapi.VM.get_by_uuid(vm_uuid)
+        vbd_refs = self._session.xenapi.VM.get_VBDs(vm_ref)
+        vdi_refs = map(self._session.xenapi.VBD.get_VDI, vbd_refs)
+        # (vdi_id integer primary key, vdi_uuid text, vdi_name text, record text, vm_id, FOREIGN KEY(vm_id) REFERENCES vms(vm_id))''')
+        for vdi_ref in vdi_refs:
+            print("REFS: %s" % vdi_ref)
+            vdi_name_label = self._session.xenapi.VDI.get_name_label(vdi_ref)
+            vdi_uuid = self._session.xenapi.VDI.get_uuid(vdi_ref)
+            vdi_record = str(self._session.xenapi.VDI.get_record(vdi_ref))
+            vm_id = self.c.execute("SELECT vm_id FROM vms WHERE vm_uuid=(?)", (vm_uuid))
+            self.c.execute("INSERT INTO vdis(vdi_uuid, vdi_name, record, vm_id) VALUES (?,?,?,?)",
+                           (vdi_uuid, vdi_name_label, vdi_record, vm_id))
+            self.conn.commit()
+
     def new_vm(self):
         """Launch dialog to get vm/vdi. Populate page with details"""
         v = new_vm_dialog(self.master, self._pool_master_address)
@@ -137,8 +152,10 @@ class App():
             name_label = self._session.xenapi.VM.get_name_label(ref)
             record_string = str(self._session.xenapi.VM.get_record(ref))
             # (vm_id integer primary key, vm_uuid text, vm_name text, record text, tracked bool)
-            self.c.execute("INSERT INTO vms(vm_uuid, vm_name, record, tracked) VALUES (?,?,?,?)", (vm_uuid, name_label, record_string, "True"))
+            self.c.execute("INSERT INTO vms(vm_uuid, vm_name, record, tracked) VALUES (?,?,?,?)",
+                           (vm_uuid, name_label, record_string, "True"))
             self.conn.commit()
+            self.new_vdis(vm_uuid)
         # TEMP
         self.populate_page()
 
