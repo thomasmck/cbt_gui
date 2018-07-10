@@ -11,6 +11,32 @@ from matplotlib.figure import Figure
 import sqlite3
 import threading
 
+class VM(object):
+    def __init__(self, uuid):
+        self.find_vm(uuid)
+
+    def find_vm(self, uuid):
+        # See if VDI is cached
+        try:
+            pass
+        # Otherwise find details from host
+        except:
+            pass
+
+class VDI(object):
+    """Object for a VDI"""
+    def __init__(self, uuid):
+        self.find_vdi(uuid)
+
+    def find_vdi(self, uuid):
+        # See if VDI is cached
+        try:
+            pass
+        # Otherwise find details from host
+        except:
+            pass
+
+
 class App():
 
     def __init__(self, master, session):
@@ -127,16 +153,24 @@ class App():
         self._session = self.create_new_session()
 
     def new_vdis(self, vm_uuid):
+        print("VM uuid: %s" % vm_uuid)
         vm_ref = self._session.xenapi.VM.get_by_uuid(vm_uuid)
         vbd_refs = self._session.xenapi.VM.get_VBDs(vm_ref)
-        vdi_refs = map(self._session.xenapi.VBD.get_VDI, vbd_refs)
+        print("VBD refs: %s" % vbd_refs)
         # (vdi_id integer primary key, vdi_uuid text, vdi_name text, record text, vm_id, FOREIGN KEY(vm_id) REFERENCES vms(vm_id))''')
-        for vdi_ref in vdi_refs:
-            print("REFS: %s" % vdi_ref)
+        for vbd_ref in vbd_refs:
+            vdi_ref = self._session.xenapi.VBD.get_VDI(vbd_ref)
+            if vdi_ref == "OpaqueRef:NULL":
+                continue
             vdi_name_label = self._session.xenapi.VDI.get_name_label(vdi_ref)
+            print(vdi_name_label)
             vdi_uuid = self._session.xenapi.VDI.get_uuid(vdi_ref)
+            print(vdi_uuid)
             vdi_record = str(self._session.xenapi.VDI.get_record(vdi_ref))
-            vm_id = self.c.execute("SELECT vm_id FROM vms WHERE vm_uuid=(?)", (vm_uuid))
+            print(vdi_record)
+            self.c.execute("SELECT vm_id FROM vms WHERE vm_uuid=(?)", (vm_uuid,))
+            vm_id = int(self.c.fetchall()[0][0])
+            print("VM id: %s" % vm_id)
             self.c.execute("INSERT INTO vdis(vdi_uuid, vdi_name, record, vm_id) VALUES (?,?,?,?)",
                            (vdi_uuid, vdi_name_label, vdi_record, vm_id))
             self.conn.commit()
@@ -179,7 +213,6 @@ class App():
         session = XenAPI.Session("https://" + self._pool_master_address, ignore_ssl=True)
         session.login_with_password(self._username, self._password, "0.1", "CBT example")
         return session
-
 
     def graph_populate(self):
         """Generate graph of how many backups have been done each day"""
