@@ -4,10 +4,15 @@ import XenAPI
 # Class to handle opening and closing database connections
 class DbConnection(object):
     def __init__(self):
+        self.__connect()
+        self.create_table()
+
+    def __connect(self):
         self.conn = sqlite3.connect("C:\\Users\Tom\Documents\pythonsqlite.db")
         print(sqlite3.version)
         self.c = self.conn.cursor()
 
+    def create_table(self):
         # Try and create table
         try:
             self.c.execute('''CREATE TABLE vms
@@ -24,7 +29,6 @@ class DbConnection(object):
             else:
                 raise e
 
-    @staticmethod
     def query(self, query, params):
         try:
             self.c.execute(query, params)
@@ -32,18 +36,13 @@ class DbConnection(object):
             return result
         except Exception as e:
             print(e)
-        finally:
-            self.__del__()
 
-    @staticmethod
     def insert(self, query, params):
         try:
             self.c.execute(query, params)
             self.conn.commit()
         except Exception as e:
             print(e)
-        finally:
-            self.__del__()
 
     def __del__(self):
         self.conn.close()

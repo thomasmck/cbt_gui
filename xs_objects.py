@@ -1,5 +1,6 @@
 import XenAPI
-from connections import DbConnection
+from connections import DbConnection, XAPI
+from xs_cbt_backup import backup as Backup
 
 class Host(object):
     """
@@ -17,22 +18,23 @@ class Host(object):
         self.__username = username
         self.__password = password
         self.__address = name + ".xenrt.citrite.net"
+        self.__session = XAPI.connect()
+        self.__db = DbConnection()
         self.save(self.__address, self.__username, self.__password)
-        self.__session = None
 
     def __build_up(self, address, username, password):
         pass
 
     def save(self, address, username, password):
-        self.c.execute("SELECT vm_uuid FROM vms")
-        # TODO: Create class/function to handle db calls
+        # ToDo: Check there isn't an existing entry for this address
+        """
         self.c.execute("SELECT host, username, password FROM hosts")
         host_details = self.c.fetchall()
         self._pool_master_address = host_details[0][0]
         self._username = host_details[0][1]
         self._password = host_details[0][2]
-
-        DbConnection.insert("INSERT INTO hosts VALUES (?,?,?)", (self._pool_master_address, self._username, self._password,))
+        """
+        self.__db.insert("INSERT INTO hosts VALUES (?,?,?)", (address, username, password,))
 
     @property
     def name(self):
@@ -52,21 +54,27 @@ class Host(object):
             self.__buildVmList()
         return self.__vms
 
-    def getMachine(self, uuid):
+    def getVM(self, uuid):
         pass
 
     def __buildVmList(self):
-        pass
+        self.__vms = []
+        vms_refs = [vm for vm in self._session.xenapi.VM.get_all() if not self._session.xenapi.VM.get_is_a_template(vm)]
+        for vm_ref in vms_refs:
+            vm_uuid = self.__session.xenapi.VM.get_uuid(vm_ref)
+            self.__vms.append(VM(vm_uuid, self.__name, self.__session))
 
 
 class VM(object):
     """
     Build and save VM objects
     """
-    def __init__(self, uuid, host):
+    def __init__(self, uuid, host, session):
         self.__uuid = uuid
         self.build_up(uuid)
         self.__host = host
+        self.__session = session
+        self.__vdis = None
 
     def build_up(self, uuid):
         # See if VDI is cached
@@ -78,6 +86,53 @@ class VM(object):
 
     @property
     def vdis(self):
+        if not self.__vdis:
+            self.__buildVdiList()
+        return self.__vdis
+
+    @property
+    def host(self):
+        return self.__host
+
+    @property
+    def uuid(self):
+        return self.__uuid
+
+    def __buildVdiList(self):
+        self.__vdis = []
+        vm_ref = self.__session.xenapi.VM.get_by_uuid(self.__uuid)
+        vbd_refs = self._session.xenapi.VM.get_VBDs(vm_ref)
+        print("VBD refs: %s" % vbd_refs)
+        # (vdi_id integer primary key, vdi_uuid text, vdi_name text, record text, vm_id, FOREIGN KEY(vm_id) REFERENCES vms(vm_id))''')
+        for vbd_ref in vbd_refs:
+            vdi_ref = self._session.xenapi.VBD.get_VDI(vbd_ref)
+            if vdi_ref == "OpaqueRef:NULL":
+                continue
+            vdi_uuid = self.__session.xenapi.VDI.get_uuid(vdi_ref)
+            self.__vdis.append(VDI(vdi_uuid))
+
+    def save(self, uuid, name, record, vm_id):
+        pass
+
+    def __backup(self):
+        # Backup a VM
+        now = self.vm_list.curselection()
+        vm = self._vm_uuid[now[0]]
+        self.c.execute("SELECT date('now')")
+        timestamp = self.c.fetchall()[0][0]
+        self.c.execute("INSERT INTO backups VALUES (?,?)", (timestamp, vm))
+        self.conn.commit()
+        #def backup(master, vm, pwd, uname='root', tls=True):
+        self.backup = BackUp.backup(self._pool_master_address, self.__uuid, self._password, tls=False)
+        # Make a background task otherwise gui cannot be used
+        location = self.backup.backup()
+        self.graph_populate()
+
+
+    def __save_backup_details(self):
+        pass
+
+    def restore(self):
         pass
 
 
