@@ -29,7 +29,7 @@ class DbConnection(object):
             else:
                 raise e
 
-    def query(self, query, params):
+    def query(self, query, params=None):
         try:
             self.c.execute(query, params)
             result = self.c.fetchall()
