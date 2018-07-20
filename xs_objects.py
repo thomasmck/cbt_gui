@@ -58,6 +58,22 @@ class Host(object):
         pass
 
     def __buildVmList(self):
+        try:
+            self.__fetchCachedVms()
+        except:
+            self.__fetchUncachedVms()
+
+    def __fetchCachedVms(self):
+        self.__vms = []
+        # Add type (i.e. int) option to query
+        host_id = int(self.__db.query("SELECT host_id FROM vms WHERE host=(?)", (self.__address,))[0][0])
+        # Need to verify this correctly handles return format
+        vms = int(self.__db.query("SELECT vm_uuid FROM vms WHERE host_id=(?)", (host_id,))[0])
+        for vm in vms:
+            vdi_uuid = None
+            self.__vdis.append(VDI(vdi_uuid))
+
+    def __fetchUncachedVms(self):
         self.__vms = []
         vms_refs = [vm for vm in self._session.xenapi.VM.get_all() if not self._session.xenapi.VM.get_is_a_template(vm)]
         for vm_ref in vms_refs:
@@ -100,6 +116,7 @@ class VM(object):
         return self.__uuid
 
     def __buildVdiList(self):
+        # Try grabbing cached results if the exist
         try:
             self.__fetchCachedVdis()
         except:
@@ -108,7 +125,7 @@ class VM(object):
     def __fetchCachedVdis(self):
         self.__vdis = []
         # Add type (i.e. int) option to query
-        vm_id = int(self.__db.query("SELECT vm_id FROM vms WHERE vm_uuid=(?)", (vm_uuid,))[0][0])
+        vm_id = int(self.__db.query("SELECT vm_id FROM vms WHERE vm_uuid=(?)", (self.__uuid,))[0][0])
         vms = int(self.__db.query("SELECT vdi_uuid FROM vdis WHERE vm_id=(?)", (vm_id,))[0])
         for vm in vms:
             vdi_uuid = None
