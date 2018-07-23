@@ -2,11 +2,37 @@ import XenAPI
 from connections import DbConnection, XAPI
 from xs_cbt_backup import backup as Backup
 
+class Local(object):
+    """
+    Find information about existing local backup instances
+    """
+    def __init__(self):
+        self.__hosts = None
+        self.__db = DbConnection()
+        pass
+
+    @property
+    def hosts(self):
+        if not self.__hosts:
+            self.__buildHostList()
+        return self.__hosts
+
+    def __buildHostList(self):
+        self.__hosts = []
+        # Fetch host details from the database
+        host_details = self.__db.query("SELECT host, username, password FROM hosts")
+        for hosts in host_details:
+            name = hosts[0]
+            username = hosts[1]
+            password = hosts[2]
+            self.__hosts.append(Host(name, username, password, db))
+
+
 class Host(object):
     """
     Build and save Host objects
     """
-    def __init__(self, name, username, password):
+    def __init__(self, name, username, password, db):
         """
         Constructor
         :param name: Name of a XS host
@@ -19,13 +45,18 @@ class Host(object):
         self.__password = password
         self.__address = name + ".xenrt.citrite.net"
         self.__session = XAPI.connect()
-        self.__db = DbConnection()
-        self.save(self.__address, self.__username, self.__password)
+        self.__db = db
+        self.__save(self.__address, self.__username, self.__password)
+        self.__buildUp()
 
-    def __build_up(self, address, username, password):
+    def __buildUp(self):
+        """
+        Build up additional details on the host from the host record
+        :return:
+        """
         pass
 
-    def save(self, address, username, password):
+    def __save(self, address, username, password):
         # ToDo: Check there isn't an existing entry for this address
         """
         self.c.execute("SELECT host, username, password FROM hosts")
@@ -87,19 +118,19 @@ class VM(object):
     """
     def __init__(self, uuid, host, session, db):
         self.__uuid = uuid
-        self.build_up(uuid)
+        self.__buildUp(uuid)
         self.__host = host
         self.__session = session
         self.__vdis = None
         self.__db = db
 
-    def build_up(self, uuid):
-        # See if VDI is cached
-        try:
-            pass
-        # Otherwise find details from host
-        except:
-            pass
+    def buildUp(self, uuid):
+        """
+        Build up additional VM details
+        :param uuid:
+        :return:
+        """
+        pass
 
     @property
     def vdis(self):
@@ -142,7 +173,7 @@ class VM(object):
             if vdi_ref == "OpaqueRef:NULL":
                 continue
             vdi_uuid = self.__session.xenapi.VDI.get_uuid(vdi_ref)
-            self.__vdis.append(VDI(vdi_uuid))
+            self.__vdis.append(VDI(vdi_uuid, self.__db, self.__session))
         #save()
 
     def save(self, uuid, name, record, vm_id):
@@ -161,24 +192,34 @@ class VM(object):
         self.graph_populate()
 
     def __save_backup_details(self):
+        """
+        Save record with details of the backup
+        :return:
+        """
         pass
 
     def restore(self):
+        """
+        Restore the VM
+        :return:
+        """
         pass
 
 
 class VDI(object):
     """Object for a VDI"""
-    def __init__(self, uuid):
-        self.find_vdi(uuid)
+    def __init__(self, uuid, db, session):
+        self.__uuid = uuid
+        self.__db = db
+        self.__session = session
+        self.__buildUp()
 
-    def find_vdi(self, uuid):
-        # See if VDI is cached
-        try:
-            pass
-        # Otherwise find details from host
-        except:
-            pass
+    def __buildUp(self):
+        """
+        Build up additional VDI details
+        :return: None
+        """
+        pass
 
     def save(self, uuid):
         vdi_ref = self._session.xenapi.VDI.get_by_uuid(uuid)

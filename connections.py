@@ -76,6 +76,6 @@ class XAPI(object):
         try:
             cls._xapi_session.login_with_password(username, password, '1.0', 'xenserver_guest.py')
         except XenAPI.Failure as f:
-            module.fail_json(msg="Unable to log on to XenServer at %s as %s: %s" % (hostname, username, f.details))
+            print("Unable to log on to XenServer at %s as %s: %s" % (hostname, username, f.details))
 
         return cls._xapi_session
