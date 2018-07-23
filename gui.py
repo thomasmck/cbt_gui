@@ -1,6 +1,8 @@
 from tkinter import *
 from tkinter import simpledialog as SimpleDialog
 import backup as BackUp
+from xs_objects import *
+from connections import XAPI
 import XenAPI
 import matplotlib
 import numpy
@@ -19,8 +21,8 @@ class App():
 
         self.master = master
         self.setup()
-        self._vdi = []
-        self._vm_uuid = []
+        self.__vdi = []
+        self.__vms = []
         self.prexisting = False
 
         # TODO: Move this stuff into a function
@@ -38,19 +40,14 @@ class App():
         # If we have existing settings then gather them
         # TODO: If we have an error when connecting the first time we get stuck in loop till db is deleted
         # TODO: Create class to manage database connections
-        self.connect_database()
-        if not self.prexisting:
-            # TODO: Temp changes
-            # Get information on host we are connecting to
-            #self.new_host()
-            # Get information on vm to track
-            #self.new_vm()
-            pass
-        else:
-            # If pre-existing get details from db
-            self.get_existing_details()
-        # TODO: Create class to manage sessions
-        self._session = session
+
+        # Just work with one host for now
+        self.__local = Local()
+        # Check if there are existing hosts in the database
+        if self.__local.pre_existing:
+            self.__host = self.__local.hosts[0]
+            self.__vms = self.__host.vms
+        # self._session = session
         self.populate_page()
 
     def get_existing_details(self):
@@ -64,33 +61,6 @@ class App():
         self._pool_master_address = host_details[0][0]
         self._username = host_details[0][1]
         self._password = host_details[0][2]
-
-    def connect_database(self):
-        """ create a database connection to a SQLite database """
-
-        # TODO: Make this general or give dialog option
-        self.conn = sqlite3.connect("C:\\Users\Tom\Documents\pythonsqlite.db")
-        print(sqlite3.version)
-        self.c = self.conn.cursor()
-
-        # Create table
-        try:
-            self.c.execute('''CREATE TABLE vms
-                     (vm_id integer primary key, vm_uuid text, vm_name text, record text, tracked bool)''')
-            self.c.execute('''CREATE TABLE backups
-                     (date date, vm_id integer, FOREIGN KEY(vm_id) REFERENCES vms(vm_id))''')
-            self.c.execute('''CREATE TABLE hosts
-                     (host text, username text, password text)''')
-            self.c.execute('''CREATE TABLE vdis
-                                 (vdi_id integer primary key, vdi_uuid text, vdi_name text, record text, vm_id, FOREIGN KEY(vm_id) REFERENCES vms(vm_id))''')
-        except Exception as e:
-            if "already exists" in str(e):
-                print("Table already exists")
-                self.prexisting = True
-            else:
-                raise e
-        # TODO: Make sure we are closing connection when necessary 
-        # conn.close()
 
     def setup(self):
         """Create basic frame structure"""
@@ -116,10 +86,11 @@ class App():
     def new_host(self):
         """Function to request details on host and create session with host"""
         d = new_host_dialog(self.master)
-        self._pool_master_address, self._username, self._password = d.result
-        self.c.execute("INSERT INTO hosts VALUES (?,?,?)", (self._pool_master_address, self._username, self._password,))
-        self.conn.commit()
-        self._session = self.create_new_session()
+        address, username, password = d.result
+        self.__host = Host(address, username, password, self.__local.db)
+        self.__vms = self.__host.vms
+        print("VMS: %s" % self.__vms)
+        self.populate_page()
 
     def new_vdis(self, vm_uuid):
         print("VM uuid: %s" % vm_uuid)
@@ -219,21 +190,15 @@ class App():
         self.canvas.get_tk_widget().grid()
         print("HERE")
 
-    def get_vm_name_label(self, uuid):
-        ref = self._session.xenapi.VM.get_by_uuid(uuid)
-        name = self._session.xenapi.VM.get_name_label(ref)
-        return name
-
-
     def populate_page(self):
         """Function to populate left frame with tracked VMs"""
         self.VM = None
         self.vm_list = Listbox(self.left_frame)
         self.vm_list.grid(row=1)
-        for v in self._vm_uuid:
-            v_name = self.get_vm_name_label(v)
-            self.vm_list.insert(END, v_name)
-        self.graph_populate()
+        for v in self.__vms:
+            self.vm_list.insert(END, v.name)
+        # TODO: Reintroduce this
+        #self.graph_populate()
         self.poll_details()
 
 

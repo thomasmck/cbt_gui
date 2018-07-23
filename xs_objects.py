@@ -9,7 +9,14 @@ class Local(object):
     def __init__(self):
         self.__hosts = None
         self.__db = DbConnection()
+        self.__db.create_table()
         pass
+
+    @property
+    def pre_existing(self):
+        if self.hosts:
+            return True
+        return False
 
     @property
     def hosts(self):
@@ -17,15 +24,20 @@ class Local(object):
             self.__buildHostList()
         return self.__hosts
 
+    @property
+    def db(self):
+        return self.__db
+
     def __buildHostList(self):
         self.__hosts = []
         # Fetch host details from the database
         host_details = self.__db.query("SELECT host, username, password FROM hosts")
-        for hosts in host_details:
-            name = hosts[0]
-            username = hosts[1]
-            password = hosts[2]
-            self.__hosts.append(Host(name, username, password, db))
+        if host_details:
+            for hosts in host_details:
+                name = hosts[0]
+                username = hosts[1]
+                password = hosts[2]
+                self.__hosts.append(Host(name, username, password, db))
 
 
 class Host(object):
@@ -43,7 +55,9 @@ class Host(object):
         self.__name = name
         self.__username = username
         self.__password = password
-        self.__address = name + ".xenrt.citrite.net"
+        #self.__address = name + ".xenrt.citrite.net"
+        # TEMP
+        self.__address = name
         self.__session = XAPI.connect()
         self.__db = db
         self.__save(self.__address, self.__username, self.__password)
@@ -65,7 +79,7 @@ class Host(object):
         self._username = host_details[0][1]
         self._password = host_details[0][2]
         """
-        self.__db.insert("INSERT INTO hosts VALUES (?,?,?)", (address, username, password,))
+        self.__db.insert("INSERT INTO hosts(host, username, password) VALUES (?,?,?)", (address, username, password,))
 
     @property
     def name(self):
@@ -106,7 +120,7 @@ class Host(object):
 
     def __fetchUncachedVms(self):
         self.__vms = []
-        vms_refs = [vm for vm in self._session.xenapi.VM.get_all() if not self._session.xenapi.VM.get_is_a_template(vm)]
+        vms_refs = [vm for vm in self.__session.xenapi.VM.get_all() if not self.__session.xenapi.VM.get_is_a_template(vm)]
         for vm_ref in vms_refs:
             vm_uuid = self.__session.xenapi.VM.get_uuid(vm_ref)
             self.__vms.append(VM(vm_uuid, self.__name, self.__session, self.__db))
@@ -124,7 +138,7 @@ class VM(object):
         self.__vdis = None
         self.__db = db
 
-    def buildUp(self, uuid):
+    def __buildUp(self, uuid):
         """
         Build up additional VM details
         :param uuid:
@@ -137,6 +151,11 @@ class VM(object):
         if not self.__vdis:
             self.__buildVdiList()
         return self.__vdis
+
+    @property
+    def name(self):
+        # TEMP - should come from buildUp
+        return "TEST"
 
     @property
     def host(self):

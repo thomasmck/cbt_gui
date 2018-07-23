@@ -16,12 +16,12 @@ class DbConnection(object):
         # Try and create table
         try:
             self.c.execute('''CREATE TABLE hosts
-                     (host_id integer primary key, host text, username text, password text)''')
+                                 (host_id integer primary key, host text, username text, password text)''')
             self.c.execute('''CREATE TABLE vms
-                     (vm_id integer primary key, vm_uuid text, vm_name text, record text, tracked bool, host_id, 
-                     FOREIGN KEY(host_id) REFERENCES hosts(host_id)''')
+                                 (vm_id integer primary key, vm_uuid text, vm_name text, record text, tracked bool,
+                                 host_id integer, FOREIGN KEY(host_id) REFERENCES hosts(host_id))''')
             self.c.execute('''CREATE TABLE backups
-                     (date date, vm_id integer, FOREIGN KEY(vm_id) REFERENCES vms(vm_id))''')
+                                 (date date, vm_id integer, FOREIGN KEY(vm_id) REFERENCES vms(vm_id))''')
             self.c.execute('''CREATE TABLE vdis
                                  (vdi_id integer primary key, vdi_uuid text, vdi_name text, record text, vm_id, 
                                  FOREIGN KEY(vm_id) REFERENCES vms(vm_id))''')
