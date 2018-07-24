@@ -176,16 +176,16 @@ class VM(object):
             self.__fetchUncachedVdis()
 
     def __fetchCachedVdis(self):
-        self.__vdis = []
+        self.__vdis = {self.__name: []}
         # Add type (i.e. int) option to query
         vm_id = int(self.__db.query("SELECT vm_id FROM vms WHERE vm_uuid=(?)", (self.__uuid,))[0][0])
-        vms = int(self.__db.query("SELECT vdi_uuid FROM vdis WHERE vm_id=(?)", (vm_id,))[0])
-        for vm in vms:
+        vdis = int(self.__db.query("SELECT vdi_uuid FROM vdis WHERE vm_id=(?)", (vm_id,))[0])
+        for vdi in vdis:
             vdi_uuid = None
-            self.__vdis.append(VDI(vdi_uuid))
+            self.__vdis[self.__name].append(VDI(vdi_uuid, self.__uuid, self.__db, self.__session))
 
     def __fetchUncachedVdis(self):
-        self.__vdis = []
+        self.__vdis = {self.__name: []}
         vm_ref = self.__session.xenapi.VM.get_by_uuid(self.__uuid)
         vbd_refs = self._session.xenapi.VM.get_VBDs(vm_ref)
         print("VBD refs: %s" % vbd_refs)
@@ -195,7 +195,7 @@ class VM(object):
             if vdi_ref == "OpaqueRef:NULL":
                 continue
             vdi_uuid = self.__session.xenapi.VDI.get_uuid(vdi_ref)
-            self.__vdis.append(VDI(vdi_uuid, self.__db, self.__session))
+            self.__vdis[self.__name].append(VDI(vdi_uuid, self.__uuid, self.__db, self.__session))
 
     def __save(self):
         record_string = str(self.__session.xenapi.VM.get_record(self.__ref))
@@ -232,11 +232,13 @@ class VM(object):
 
 class VDI(object):
     """Object for a VDI"""
-    def __init__(self, uuid, db, session):
+    def __init__(self, uuid, vm, db, session):
         self.__uuid = uuid
+        self.__vm = vm
         self.__db = db
         self.__session = session
         self.__buildUp()
+        self.__save()
 
     def __buildUp(self):
         """
@@ -245,20 +247,10 @@ class VDI(object):
         """
         pass
 
-    def save(self, uuid):
-        vdi_ref = self._session.xenapi.VDI.get_by_uuid(uuid)
-        if vdi_ref == "OpaqueRef:NULL":
-            return
-        vdi_name_label = self._session.xenapi.VDI.get_name_label(vdi_ref)
-        print(vdi_name_label)
-        vdi_uuid = self._session.xenapi.VDI.get_uuid(vdi_ref)
-        print(vdi_uuid)
+    def __save(self):
+        vdi_ref = self._session.xenapi.VDI.get_by_uuid(self.__uuid)
+        self.__name = self._session.xenapi.VDI.get_name_label(vdi_ref)
         vdi_record = str(self._session.xenapi.VDI.get_record(vdi_ref))
-        print(vdi_record)
-        # ToDo: Need mechanism to manage db connections
-        self.c.execute("SELECT vm_id FROM vms WHERE vm_uuid=(?)", (vm_uuid,))
-        vm_id = int(self.c.fetchall()[0][0])
-        print("VM id: %s" % vm_id)
-        self.c.execute("INSERT INTO vdis(vdi_uuid, vdi_name, record, vm_id) VALUES (?,?,?,?)",
-                       (vdi_uuid, vdi_name_label, vdi_record, vm_id))
-        self.conn.commit()
+        vm_id = int(self.__db.query("SELECT vm_id FROM vms WHERE vm_uuid=(?)", (self.__vm,))[0][0])
+        self.__db.insert("INSERT INTO vdis(vdi_uuid, vdi_name, record, vm_id) VALUES (?,?,?,?)",
+                       (self.__uuid, self.__name, vdi_record, vm_id))

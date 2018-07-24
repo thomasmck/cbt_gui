@@ -28,7 +28,8 @@ class App():
         
         menu.add_cascade(label="File", menu=filemenu)
         filemenu.add_command(label="New host", command=self.new_host)
-        filemenu.add_command(label="New VM", command=self.new_vm)
+        # No need add VMs as we now track them all
+        #filemenu.add_command(label="New VM", command=self.new_vm)
         # Move function to the VM class
         # filemenu.add_command(label="Backup", command=self.backup_vm)
         filemenu.add_command(label="Exit", command=quit)
@@ -77,46 +78,11 @@ class App():
         print("VMS: %s" % self.__vms)
         self.populate_page()
 
-    def new_vdis(self, vm_uuid):
-        print("VM uuid: %s" % vm_uuid)
-        vm_ref = self._session.xenapi.VM.get_by_uuid(vm_uuid)
-        vbd_refs = self._session.xenapi.VM.get_VBDs(vm_ref)
-        print("VBD refs: %s" % vbd_refs)
-        # (vdi_id integer primary key, vdi_uuid text, vdi_name text, record text, vm_id, FOREIGN KEY(vm_id) REFERENCES vms(vm_id))''')
-        for vbd_ref in vbd_refs:
-            vdi_ref = self._session.xenapi.VBD.get_VDI(vbd_ref)
-            if vdi_ref == "OpaqueRef:NULL":
-                continue
-            vdi_name_label = self._session.xenapi.VDI.get_name_label(vdi_ref)
-            print(vdi_name_label)
-            vdi_uuid = self._session.xenapi.VDI.get_uuid(vdi_ref)
-            print(vdi_uuid)
-            vdi_record = str(self._session.xenapi.VDI.get_record(vdi_ref))
-            print(vdi_record)
-            self.c.execute("SELECT vm_id FROM vms WHERE vm_uuid=(?)", (vm_uuid,))
-            vm_id = int(self.c.fetchall()[0][0])
-            print("VM id: %s" % vm_id)
-            self.c.execute("INSERT INTO vdis(vdi_uuid, vdi_name, record, vm_id) VALUES (?,?,?,?)",
-                           (vdi_uuid, vdi_name_label, vdi_record, vm_id))
-            self.conn.commit()
-
+    """
     def new_vm(self):
-        """Launch dialog to get vm/vdi. Populate page with details"""
         v = new_vm_dialog(self.master, self._pool_master_address)
         vm_uuid = v.result
-        # TODO: should get rid of self._vm_uuid entirely
-        if vm_uuid not in self._vm_uuid:
-            self._vm_uuid.append(vm_uuid)
-            ref = self._session.xenapi.VM.get_by_uuid(vm_uuid)
-            name_label = self._session.xenapi.VM.get_name_label(ref)
-            record_string = str(self._session.xenapi.VM.get_record(ref))
-            # (vm_id integer primary key, vm_uuid text, vm_name text, record text, tracked bool)
-            self.c.execute("INSERT INTO vms(vm_uuid, vm_name, record, tracked) VALUES (?,?,?,?)",
-                           (vm_uuid, name_label, record_string, "True"))
-            self.conn.commit()
-            self.new_vdis(vm_uuid)
-        # TEMP
-        self.populate_page()
+    """
 
     def graph_populate(self):
         """Generate graph of how many backups have been done each day"""
