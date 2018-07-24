@@ -1,17 +1,12 @@
 from tkinter import *
-from tkinter import simpledialog as SimpleDialog
-import backup as BackUp
 from xs_objects import *
 from connections import XAPI
-import XenAPI
 import matplotlib
 import numpy
 import time
 matplotlib.use("TkAgg")
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg, NavigationToolbar2TkAgg
 from matplotlib.figure import Figure
-import sqlite3
-import threading
 from gui_dialog import new_vm_dialog, new_host_dialog
 
 
@@ -34,7 +29,8 @@ class App():
         menu.add_cascade(label="File", menu=filemenu)
         filemenu.add_command(label="New host", command=self.new_host)
         filemenu.add_command(label="New VM", command=self.new_vm)
-        filemenu.add_command(label="Backup", command=self.backup_vm)
+        # Move function to the VM class
+        # filemenu.add_command(label="Backup", command=self.backup_vm)
         filemenu.add_command(label="Exit", command=quit)
 
         # If we have existing settings then gather them
@@ -44,23 +40,12 @@ class App():
         # Just work with one host for now
         self.__local = Local()
         # Check if there are existing hosts in the database
+        print("LOCAL %s %s" % (self.__local, self.__local.pre_existing))
         if self.__local.pre_existing:
             self.__host = self.__local.hosts[0]
             self.__vms = self.__host.vms
         # self._session = session
         self.populate_page()
-
-    def get_existing_details(self):
-        self.c.execute("SELECT vm_uuid FROM vms")
-        vms = self.c.fetchall()
-        for vm in vms:
-            self._vm_uuid.append(vm[0])
-        # TODO: Create class/function to handle db calls
-        self.c.execute("SELECT host, username, password FROM hosts")
-        host_details = self.c.fetchall()
-        self._pool_master_address = host_details[0][0]
-        self._username = host_details[0][1]
-        self._password = host_details[0][2]
 
     def setup(self):
         """Create basic frame structure"""
@@ -133,27 +118,6 @@ class App():
         # TEMP
         self.populate_page()
 
-    def backup_vm(self):
-        # Backup a VM
-        now = self.vm_list.curselection()
-        vm = self._vm_uuid[now[0]]
-        self.c.execute("SELECT date('now')")
-        timestamp = self.c.fetchall()[0][0]
-        self.c.execute("INSERT INTO backups VALUES (?,?)", (timestamp, vm))
-        self.conn.commit()
-        #def backup(master, vm, pwd, uname='root', tls=True):
-        self.backup = BackUp.backup(self._pool_master_address, vm, self._password, tls=False)
-        # Make a background task otherwise gui cannot be used
-        location = self.backup.backup()
-        self.graph_populate()
-
-
-    def create_new_session(self):
-        """Function to create new session"""
-        session = XenAPI.Session("https://" + self._pool_master_address, ignore_ssl=True)
-        session.login_with_password(self._username, self._password, "0.1", "CBT example")
-        return session
-
     def graph_populate(self):
         """Generate graph of how many backups have been done each day"""
         try:
@@ -201,49 +165,28 @@ class App():
         #self.graph_populate()
         self.poll_details()
 
-
     def update_details(self, selection):
-        """Update bottom frame with vm details"""
-        vm = self._vm_uuid[selection[0]]
-        vm_ref = self._session.xenapi.VM.get_by_uuid(vm)
+        """Update bottom frame with vm/vdi details"""
+        vm = self.__vms[selection[0]]
+        #vm_ref = self._session.xenapi.VM.get_by_uuid(vm)
         # Attempt to clean up existing entries before we create the new ones
         try:
             self.details_label.destroy()
             self.name_label.destroy()
-            self.vdi_label.destroy()
-            self.date_label.destroy()
+            #self.vdi_label.destroy()
+            #self.date_label.destroy()
         except Exception as e:
             print(e)
             pass
         # Add row titles
-        vm_string = "VM uuid: {}".format(vm)
+        vm_string = "VM uuid: {}".format(vm.uuid)
         self.details_label = Label(self.bottom_frame, text=vm_string, anchor=W)
         self.details_label.grid(row=1, sticky='W')
-        name = self.get_vm_name_label(vm)
+        name = vm.name
         name_string = "Name label: {}".format(name)
         self.name_label = Label(self.bottom_frame, text=name_string, anchor=W)
         self.name_label.grid(row=2, sticky='W')
-        # BackupConfig(session, back dir, use_tls)
-        self.backup = BackUp.BackupConfig(self._session, "./", use_tls=False)
-        # This call is now obsolete - should cache all the information about a VM
-        """
-        vdis = self.backup._get_vdis_of_vm(vm_ref)
-        vdi_string = "VDIs: "
-        for vdi in vdis:
-            vdi_string += vdi + ";"
-        self.vdi_label = Label(self.bottom_frame, text=vdi_string, anchor=W)
-        self.vdi_label.grid(row=3, sticky='W')
-        # Add info on last backup, total backups, etc
-        self.c.execute("SELECT date FROM backups WHERE vm = (?) ORDER BY date DESC", (vm,))
-        data = self.c.fetchall()
-        print("DATA")
-        if data:
-          print(data[0][0])
-          backup_date = "Last backup date: {}".format(data[0][0])
-          self.date_label = Label(self.bottom_frame, text=backup_date, anchor=W)
-          self.date_label.grid(row=4, sticky='W')
-        """
-
+        # Get VDI information
 
     def poll_details(self):
         """Poll the vm list in the left frame to see when one is selected"""
@@ -257,7 +200,6 @@ class App():
                 self.update_details(now)
                 self.VM = now
         self.master.after(1000, self.poll_details)
-
 
     def populate_graph(self):
         """Populate graph in top frame"""

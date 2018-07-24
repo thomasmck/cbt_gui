@@ -37,7 +37,7 @@ class Local(object):
                 name = hosts[0]
                 username = hosts[1]
                 password = hosts[2]
-                self.__hosts.append(Host(name, username, password, db))
+                self.__hosts.append(Host(name, username, password, self.__db))
 
 
 class Host(object):
@@ -60,6 +60,7 @@ class Host(object):
         self.__address = name
         self.__session = XAPI.connect()
         self.__db = db
+        # TODO: Only save if not pre-existing
         self.__save(self.__address, self.__username, self.__password)
         self.__buildUp()
 
@@ -132,11 +133,12 @@ class VM(object):
     """
     def __init__(self, uuid, host, session, db):
         self.__uuid = uuid
-        self.__buildUp(uuid)
         self.__host = host
         self.__session = session
         self.__vdis = None
         self.__db = db
+        self.__buildUp(uuid)
+        self.__save()
 
     def __buildUp(self, uuid):
         """
@@ -144,6 +146,8 @@ class VM(object):
         :param uuid:
         :return:
         """
+        self.__ref = self.__session.xenapi.VM.get_by_uuid(uuid)
+        self.__name = self.__session.xenapi.VM.get_name_label(self.__ref)
         pass
 
     @property
@@ -154,8 +158,7 @@ class VM(object):
 
     @property
     def name(self):
-        # TEMP - should come from buildUp
-        return "TEST"
+        return self.__name
 
     @property
     def host(self):
@@ -193,10 +196,12 @@ class VM(object):
                 continue
             vdi_uuid = self.__session.xenapi.VDI.get_uuid(vdi_ref)
             self.__vdis.append(VDI(vdi_uuid, self.__db, self.__session))
-        #save()
 
-    def save(self, uuid, name, record, vm_id):
-        pass
+    def __save(self):
+        record_string = str(self.__session.xenapi.VM.get_record(self.__ref))
+        # (vm_id integer primary key, vm_uuid text, vm_name text, record text, tracked bool)
+        self.__db.insert("INSERT INTO vms(vm_uuid, vm_name, record, tracked) VALUES (?,?,?,?)",
+                        (self.__uuid, self.__name, record_string, "True"))
 
     def __backup(self):
         # Backup a VM

@@ -33,10 +33,14 @@ class DbConnection(object):
 
     def query(self, query, params=None):
         try:
-            self.c.execute(query, params)
+            if params:
+                self.c.execute(query, params)
+            else:
+                self.c.execute(query)
             result = self.c.fetchall()
             return result
         except Exception as e:
+            print("ERROR")
             print(e)
 
     def insert(self, query, params):
