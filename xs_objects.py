@@ -61,7 +61,7 @@ class Host(object):
         self.__session = XAPI.connect()
         self.__db = db
         # TODO: Only save if not pre-existing
-        self.__save(self.__address, self.__username, self.__password)
+        self.__save()
         self.__buildUp()
 
     def __buildUp(self):
@@ -71,16 +71,15 @@ class Host(object):
         """
         pass
 
-    def __save(self, address, username, password):
+    def __save(self):
         # ToDo: Check there isn't an existing entry for this address
-        """
-        self.c.execute("SELECT host, username, password FROM hosts")
-        host_details = self.c.fetchall()
-        self._pool_master_address = host_details[0][0]
-        self._username = host_details[0][1]
-        self._password = host_details[0][2]
-        """
-        self.__db.insert("INSERT INTO hosts(host, username, password) VALUES (?,?,?)", (address, username, password,))
+        try:
+            existing = int(self.__db.query("SELECT host_id FROM hosts WHERE host=(?)",  (self.__address,))[0][0])
+            print("Not saving")
+        except:
+            print("Saving")
+            self.__db.insert("INSERT INTO hosts(host, username, password) VALUES (?,?,?)", (self.__address,
+                             self.__username, self.__password,))
 
     @property
     def name(self):
@@ -187,21 +186,26 @@ class VM(object):
     def __fetchUncachedVdis(self):
         self.__vdis = {self.__name: []}
         vm_ref = self.__session.xenapi.VM.get_by_uuid(self.__uuid)
-        vbd_refs = self._session.xenapi.VM.get_VBDs(vm_ref)
+        vbd_refs = self.__session.xenapi.VM.get_VBDs(vm_ref)
         print("VBD refs: %s" % vbd_refs)
         # (vdi_id integer primary key, vdi_uuid text, vdi_name text, record text, vm_id, FOREIGN KEY(vm_id) REFERENCES vms(vm_id))''')
         for vbd_ref in vbd_refs:
-            vdi_ref = self._session.xenapi.VBD.get_VDI(vbd_ref)
+            vdi_ref = self.__session.xenapi.VBD.get_VDI(vbd_ref)
             if vdi_ref == "OpaqueRef:NULL":
                 continue
             vdi_uuid = self.__session.xenapi.VDI.get_uuid(vdi_ref)
             self.__vdis[self.__name].append(VDI(vdi_uuid, self.__uuid, self.__db, self.__session))
 
     def __save(self):
-        record_string = str(self.__session.xenapi.VM.get_record(self.__ref))
-        # (vm_id integer primary key, vm_uuid text, vm_name text, record text, tracked bool)
-        self.__db.insert("INSERT INTO vms(vm_uuid, vm_name, record, tracked) VALUES (?,?,?,?)",
-                        (self.__uuid, self.__name, record_string, "True"))
+        try:
+            existing = int(self.__db.query("SELECT vm_id FROM vms WHERE vm_uuid=(?)",  (self.__uuid,))[0][0])
+            print("Not saving")
+        except:
+            print("Saving")
+            record_string = str(self.__session.xenapi.VM.get_record(self.__ref))
+            # (vm_id integer primary key, vm_uuid text, vm_name text, record text, tracked bool)
+            self.__db.insert("INSERT INTO vms(vm_uuid, vm_name, record, tracked) VALUES (?,?,?,?)",
+                            (self.__uuid, self.__name, record_string, "True"))
 
     def __backup(self):
         # Backup a VM
@@ -248,9 +252,14 @@ class VDI(object):
         pass
 
     def __save(self):
-        vdi_ref = self._session.xenapi.VDI.get_by_uuid(self.__uuid)
-        self.__name = self._session.xenapi.VDI.get_name_label(vdi_ref)
-        vdi_record = str(self._session.xenapi.VDI.get_record(vdi_ref))
-        vm_id = int(self.__db.query("SELECT vm_id FROM vms WHERE vm_uuid=(?)", (self.__vm,))[0][0])
-        self.__db.insert("INSERT INTO vdis(vdi_uuid, vdi_name, record, vm_id) VALUES (?,?,?,?)",
-                       (self.__uuid, self.__name, vdi_record, vm_id))
+        # Maybe should move this logic to the cached/uncached VDI stuff in the VM class?
+        try:
+            existing = int(self.__db.query("SELECT vdi_id FROM vdis WHERE vdi_uuid=(?)",  (self.__uuid,))[0][0])
+            print("Not saving")
+        except:
+            vdi_ref = self.__session.xenapi.VDI.get_by_uuid(self.__uuid)
+            self.__name = self.__session.xenapi.VDI.get_name_label(vdi_ref)
+            vdi_record = str(self.__session.xenapi.VDI.get_record(vdi_ref))
+            vm_id = int(self.__db.query("SELECT vm_id FROM vms WHERE vm_uuid=(?)", (self.__vm,))[0][0])
+            self.__db.insert("INSERT INTO vdis(vdi_uuid, vdi_name, record, vm_id) VALUES (?,?,?,?)",
+                             (self.__uuid, self.__name, vdi_record, vm_id))

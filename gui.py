@@ -45,6 +45,10 @@ class App():
         if self.__local.pre_existing:
             self.__host = self.__local.hosts[0]
             self.__vms = self.__host.vms
+            self.__vdis = {}
+            for vm in self.__vms:
+                self.__vdis[vm.name] = vm.vdis
+
         # self._session = session
         self.populate_page()
 

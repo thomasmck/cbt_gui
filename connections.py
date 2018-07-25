@@ -62,6 +62,7 @@ class XAPI(object):
         if cls._xapi_session is not None:
             return cls._xapi_session
 
+        # TODO: Allow connecting to different hosts
         hostname = "lcy2-dt112.xenrt.citrite.net"
         username = "root"
         password = "xenroot"
