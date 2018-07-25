@@ -175,16 +175,19 @@ class VM(object):
             self.__fetchUncachedVdis()
 
     def __fetchCachedVdis(self):
-        self.__vdis = {self.__name: []}
+        #self.__vdis = {self.__name: []}
+        self.__vdis = []
         # Add type (i.e. int) option to query
         vm_id = int(self.__db.query("SELECT vm_id FROM vms WHERE vm_uuid=(?)", (self.__uuid,))[0][0])
         vdis = int(self.__db.query("SELECT vdi_uuid FROM vdis WHERE vm_id=(?)", (vm_id,))[0])
         for vdi in vdis:
             vdi_uuid = None
-            self.__vdis[self.__name].append(VDI(vdi_uuid, self.__uuid, self.__db, self.__session))
+            #self.__vdis[self.__name].append(VDI(vdi_uuid, self.__uuid, self.__db, self.__session))
+            self.__vdis.append(VDI(vdi_uuid, self.__uuid, self.__db, self.__session))
 
+    # THIS FUNCTION IS BEING CALLED EVEN WHEN VDIS ARE CACHED
     def __fetchUncachedVdis(self):
-        self.__vdis = {self.__name: []}
+        self.__vdis = []
         vm_ref = self.__session.xenapi.VM.get_by_uuid(self.__uuid)
         vbd_refs = self.__session.xenapi.VM.get_VBDs(vm_ref)
         print("VBD refs: %s" % vbd_refs)
@@ -194,7 +197,7 @@ class VM(object):
             if vdi_ref == "OpaqueRef:NULL":
                 continue
             vdi_uuid = self.__session.xenapi.VDI.get_uuid(vdi_ref)
-            self.__vdis[self.__name].append(VDI(vdi_uuid, self.__uuid, self.__db, self.__session))
+            self.__vdis.append(VDI(vdi_uuid, self.__uuid, self.__db, self.__session))
 
     def __save(self):
         try:
@@ -244,11 +247,31 @@ class VDI(object):
         self.__buildUp()
         self.__save()
 
+    @property
+    def name(self):
+        return self.__name
+
+    @property
+    def uuid(self):
+        return self.__uuid
+
+    @property
+    def virtual_size(self):
+        return self.__virtual_size
+
+    @property
+    def record(self):
+        return self.__record
+
     def __buildUp(self):
         """
         Build up additional VDI details
         :return: None
         """
+        self.__ref = self.__session.xenapi.VDI.get_by_uuid(self.__uuid)
+        self.__name = self.__session.xenapi.VDI.get_name_label(self.__ref)
+        self.__virtual_size = self.__session.xenapi.VDI.get_virtual_size(self.__ref)
+        self.__record = self.__session.xenapi.VDI.get_record(self.__ref)
         pass
 
     def __save(self):

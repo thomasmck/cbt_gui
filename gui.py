@@ -138,25 +138,44 @@ class App():
     def update_details(self, selection):
         """Update bottom frame with vm/vdi details"""
         vm = self.__vms[selection[0]]
-        #vm_ref = self._session.xenapi.VM.get_by_uuid(vm)
         # Attempt to clean up existing entries before we create the new ones
         try:
-            self.details_label.destroy()
+            self.vm_uuid_label.destroy()
             self.name_label.destroy()
+            for label in self.vdi_labels:
+                label.destroy()
             #self.vdi_label.destroy()
             #self.date_label.destroy()
         except Exception as e:
             print(e)
             pass
-        # Add row titles
-        vm_string = "VM uuid: {}".format(vm.uuid)
-        self.details_label = Label(self.bottom_frame, text=vm_string, anchor=W)
-        self.details_label.grid(row=1, sticky='W')
-        name = vm.name
-        name_string = "Name label: {}".format(name)
-        self.name_label = Label(self.bottom_frame, text=name_string, anchor=W)
+        # Add vm uuid row
+        vm_uuid = "VM uuid: {}".format(vm.uuid)
+        self.vm_uuid_label = Label(self.bottom_frame, text=vm_uuid, anchor=W)
+        self.vm_uuid_label.grid(row=1, sticky='W')
+        # Add vm name label row
+        vm_name = "Name label: {}".format(vm.name)
+        self.name_label = Label(self.bottom_frame, text=vm_name, anchor=W)
         self.name_label.grid(row=2, sticky='W')
-        # Get VDI information
+        # Add VDI details row
+        vdis = self.__vdis[vm.name]
+        gap = "-------------------"
+        row = 3
+        self.vdi_labels = []
+        print("VDIS: %s" %vdis)
+        for vdi in vdis:
+            # Vdi name label
+            vdi_name = "Name label: {}".format(vdi.name)
+            vdi_name_label = Label(self.bottom_frame, text=vdi_name, anchor=W)
+            vdi_name_label.grid(row=row, sticky='W')
+            self.vdi_labels.append(vdi_name_label)
+
+            # Vdi uuid label
+            vdi_uuid = "Name label: {}".format(vdi.uuid)
+            vdi_uuid_label = Label(self.bottom_frame, text=vdi_uuid, anchor=W)
+            vdi_uuid_label.grid(row=row+1, sticky='W')
+            self.vdi_labels.append(vdi_uuid_label)
+            row = row + 2
 
     def poll_details(self):
         """Poll the vm list in the left frame to see when one is selected"""
