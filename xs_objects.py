@@ -171,19 +171,24 @@ class VM(object):
         # Try grabbing cached results if the exist
         try:
             self.__fetchCachedVdis()
+            print("CACHED")
         except:
             self.__fetchUncachedVdis()
+            print("UNCACHED")
 
     def __fetchCachedVdis(self):
         #self.__vdis = {self.__name: []}
         self.__vdis = []
         # Add type (i.e. int) option to query
+        print("a")
         vm_id = int(self.__db.query("SELECT vm_id FROM vms WHERE vm_uuid=(?)", (self.__uuid,))[0][0])
-        vdis = int(self.__db.query("SELECT vdi_uuid FROM vdis WHERE vm_id=(?)", (vm_id,))[0])
+        print(vm_id)
+        vdis = self.__db.query("SELECT vdi_uuid FROM vdis WHERE vm_id=(?)", (vm_id,))[0]
+        print(vdis)
         for vdi in vdis:
             vdi_uuid = None
             #self.__vdis[self.__name].append(VDI(vdi_uuid, self.__uuid, self.__db, self.__session))
-            self.__vdis.append(VDI(vdi_uuid, self.__uuid, self.__db, self.__session))
+            self.__vdis.append(VDI(vdi, self.__uuid, self.__db, self.__session))
 
     # THIS FUNCTION IS BEING CALLED EVEN WHEN VDIS ARE CACHED
     def __fetchUncachedVdis(self):
