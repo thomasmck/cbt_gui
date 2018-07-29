@@ -14,30 +14,32 @@ class App():
 
     def __init__(self, master, session):
 
-        self.master = master
-        self.setup()
-        self.__vdi = []
+        self.__vdis = []
         self.__vms = []
-        self.prexisting = False
+        self.master = master
+        self.setup_frame()
+        self.setup_menu()
+        self.gather_existing_data()
+        self.populate_page()
 
-        # TODO: Move this stuff into a function
+    def setup_menu(self):
         # Create menu bar
+        # Does this need to be self?
         menu = Menu(self.master)
         self.master.config(menu=menu)
+
+        # File dropdown menu
         filemenu = Menu(menu)
-        
         menu.add_cascade(label="File", menu=filemenu)
         filemenu.add_command(label="New host", command=self.new_host)
-        # No need add VMs as we now track them all
-        #filemenu.add_command(label="New VM", command=self.new_vm)
-        # Move function to the VM class
-        # filemenu.add_command(label="Backup", command=self.backup_vm)
         filemenu.add_command(label="Exit", command=quit)
 
-        # If we have existing settings then gather them
-        # TODO: If we have an error when connecting the first time we get stuck in loop till db is deleted
-        # TODO: Create class to manage database connections
+        # VM drop down menu
+        vmmenu = Menu(menu)
+        menu.add_cascade(label="VM", menu=vmmenu)
+        vmmenu.add_command(label="Backup", command=self.backup_vm)
 
+    def gather_existing_data(self):
         # Just work with one host for now
         self.__local = Local()
         # Check if there are existing hosts in the database
@@ -49,10 +51,7 @@ class App():
             for vm in self.__vms:
                 self.__vdis[vm.name] = vm.vdis
 
-        # self._session = session
-        self.populate_page()
-
-    def setup(self):
+    def setup_frame(self):
         """Create basic frame structure"""
         self.m1 = PanedWindow(self.master, bg='black')
         self.m1.pack(fill=BOTH, expand=1)
@@ -69,7 +68,7 @@ class App():
         self.bottom_frame = Frame(self.master, bg='white')
         self.m2.add(self.bottom_frame)
 
-        Label(self.left_frame, text="VM", width=30).grid(row=0, sticky='W')
+        Label(self.left_frame, text="VMs", width=30).grid(row=0, sticky='W')
         Label(self.top_frame, text="Graphs", width=100).grid(row=0, sticky='W')
         Label(self.bottom_frame, text="Details", width=100).grid(row=0, sticky='W')
 
@@ -79,14 +78,15 @@ class App():
         address, username, password = d.result
         self.__host = Host(address, username, password, self.__local.db)
         self.__vms = self.__host.vms
+        self.__vdis = {}
+        for vm in self.__vms:
+            self.__vdis[vm.name] = vm.vdis
         print("VMS: %s" % self.__vms)
         self.populate_page()
 
-    """
-    def new_vm(self):
-        v = new_vm_dialog(self.master, self._pool_master_address)
-        vm_uuid = v.result
-    """
+    def backup_vm(self):
+        vm = self.__vms[self.VM[0]]
+        vm.backup()
 
     def graph_populate(self):
         """Generate graph of how many backups have been done each day"""
@@ -136,44 +136,54 @@ class App():
         self.poll_details()
 
     def update_details(self, selection):
+
+        def create_label(self, text, row):
+            label = Label(self.bottom_frame, text=text, anchor=W)
+            label.grid(row=row, sticky='W')
+            return label
+
         """Update bottom frame with vm/vdi details"""
+
+        # Find currently selected vm
         vm = self.__vms[selection[0]]
+
         # Attempt to clean up existing entries before we create the new ones
         try:
             self.vm_uuid_label.destroy()
             self.name_label.destroy()
             for label in self.vdi_labels:
                 label.destroy()
-            #self.vdi_label.destroy()
-            #self.date_label.destroy()
         except Exception as e:
             print(e)
-            pass
+
         # Add vm uuid row
         vm_uuid = "VM uuid: {}".format(vm.uuid)
-        self.vm_uuid_label = Label(self.bottom_frame, text=vm_uuid, anchor=W)
-        self.vm_uuid_label.grid(row=1, sticky='W')
+        self.vm_uuid_label = create_label(self, vm_uuid, 1)
+
         # Add vm name label row
         vm_name = "Name label: {}".format(vm.name)
-        self.name_label = Label(self.bottom_frame, text=vm_name, anchor=W)
-        self.name_label.grid(row=2, sticky='W')
+        self.name_label = create_label(self, vm_name, 2)
+
         # Add VDI details row
         vdis = self.__vdis[vm.name]
-        gap = "-------------------"
-        row = 3
         self.vdi_labels = []
         print("VDIS: %s" %vdis)
+
+        vdi_name = "----VDIs-----"
+        vdi_section_label = create_label(self, vdi_name, 3)
+        self.vdi_labels.append(vdi_section_label)
+
+        gap = "-------------------"
+        row = 4
         for vdi in vdis:
             # Vdi name label
             vdi_name = "Name label: {}".format(vdi.name)
-            vdi_name_label = Label(self.bottom_frame, text=vdi_name, anchor=W)
-            vdi_name_label.grid(row=row, sticky='W')
+            vdi_name_label = create_label(self, vdi_name, row)
             self.vdi_labels.append(vdi_name_label)
 
             # Vdi uuid label
             vdi_uuid = "Name label: {}".format(vdi.uuid)
-            vdi_uuid_label = Label(self.bottom_frame, text=vdi_uuid, anchor=W)
-            vdi_uuid_label.grid(row=row+1, sticky='W')
+            vdi_uuid_label = create_label(self, vdi_uuid, row+1)
             self.vdi_labels.append(vdi_uuid_label)
             row = row + 2
 
@@ -208,3 +218,9 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+    """
+    def new_vm(self):
+        v = new_vm_dialog(self.master, self._pool_master_address)
+        vm_uuid = v.result
+    """

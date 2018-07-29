@@ -1,6 +1,7 @@
-import XenAPI
 from connections import DbConnection, XAPI
 from xs_cbt_backup import backup as Backup
+import ast
+from datetime import *
 
 class Local(object):
     """
@@ -116,14 +117,14 @@ class Host(object):
         vms = int(self.__db.query("SELECT vm_uuid FROM vms WHERE host_id=(?)", (host_id,))[0])
         for vm in vms:
             vdi_uuid = None
-            self.__vdis.append(VDI(vdi_uuid))
+            self.__vms.append(VM(vm, self, self.__session, self.__db))
 
     def __fetchUncachedVms(self):
         self.__vms = []
         vms_refs = [vm for vm in self.__session.xenapi.VM.get_all() if not self.__session.xenapi.VM.get_is_a_template(vm)]
         for vm_ref in vms_refs:
             vm_uuid = self.__session.xenapi.VM.get_uuid(vm_ref)
-            self.__vms.append(VM(vm_uuid, self.__name, self.__session, self.__db))
+            self.__vms.append(VM(vm_uuid, self, self.__session, self.__db))
 
 
 class VM(object):
@@ -188,7 +189,7 @@ class VM(object):
         for vdi in vdis:
             vdi_uuid = None
             #self.__vdis[self.__name].append(VDI(vdi_uuid, self.__uuid, self.__db, self.__session))
-            self.__vdis.append(VDI(vdi, self.__uuid, self.__db, self.__session))
+            self.__vdis.append(VDI(vdi, self, self.__db, self.__session))
 
     # THIS FUNCTION IS BEING CALLED EVEN WHEN VDIS ARE CACHED
     def __fetchUncachedVdis(self):
@@ -202,7 +203,7 @@ class VM(object):
             if vdi_ref == "OpaqueRef:NULL":
                 continue
             vdi_uuid = self.__session.xenapi.VDI.get_uuid(vdi_ref)
-            self.__vdis.append(VDI(vdi_uuid, self.__uuid, self.__db, self.__session))
+            self.__vdis.append(VDI(vdi_uuid, self, self.__db, self.__session))
 
     def __save(self):
         try:
@@ -215,16 +216,21 @@ class VM(object):
             self.__db.insert("INSERT INTO vms(vm_uuid, vm_name, record, tracked) VALUES (?,?,?,?)",
                             (self.__uuid, self.__name, record_string, "True"))
 
-    def __backup(self):
+    def backup(self):
         # Backup a VM
-        now = self.vm_list.curselection()
-        vm = self._vm_uuid[now[0]]
-        timestamp = self.__db.query("SELECT date('now')")[0][0]
-        self.__db.insert("INSERT INTO backups VALUES (?,?)", (timestamp, vm))
-        #def backup(master, vm, pwd, uname='root', tls=True):
-        self.__backup = Backup.backup(self._pool_master_address, self.__uuid, self._password, tls=False)
-        # Make a background task otherwise gui cannot be used
-        location = self.__backup.backup()
+        # Record backup in table
+        #timestamp = self.__db.query("SELECT date('now')")[0][0]
+
+        # Initiate backup
+        # TODO: handle this in a thread
+        # def __init__(self, session, backup_dir, use_tls):
+        self.__backup = Backup.BackupConfig(self.__session, "C:\\Users\Tom\Documents\.backup", False)
+        #def backup(self, vm_uuid):
+        timestamp = self.__backup.backup(self.__uuid)
+        self.__db.insert("INSERT INTO backups VALUES (?,?)", (timestamp, self.__uuid))
+        #location = self.__backup.backup()
+
+        # Update backup graph
         self.graph_populate()
 
     def __save_backup_details(self):
@@ -249,8 +255,8 @@ class VDI(object):
         self.__vm = vm
         self.__db = db
         self.__session = session
-        self.__buildUp()
         self.__save()
+        self.__buildUp()
 
     @property
     def name(self):
@@ -268,16 +274,23 @@ class VDI(object):
     def record(self):
         return self.__record
 
+    def get_record(self, name):
+        if name in self.__record.keys():
+            return self.__record[name]
+        return
+
     def __buildUp(self):
         """
         Build up additional VDI details
         :return: None
         """
         self.__ref = self.__session.xenapi.VDI.get_by_uuid(self.__uuid)
-        self.__name = self.__session.xenapi.VDI.get_name_label(self.__ref)
-        self.__virtual_size = self.__session.xenapi.VDI.get_virtual_size(self.__ref)
-        self.__record = self.__session.xenapi.VDI.get_record(self.__ref)
-        pass
+        (self.__id, uuid, self.__name, record, vm_id) = self.__db.query("SELECT * FROM vdis WHERE vdi_uuid=(?)", (self.__uuid,))[0]
+
+        # Return to dict format
+        self.__record = ast.literal_eval(record)
+        # TODO: consider other entries we may want to make properties
+        self.__virtual_size = self.__record['virtual_size']
 
     def __save(self):
         # Maybe should move this logic to the cached/uncached VDI stuff in the VM class?
@@ -287,7 +300,10 @@ class VDI(object):
         except:
             vdi_ref = self.__session.xenapi.VDI.get_by_uuid(self.__uuid)
             self.__name = self.__session.xenapi.VDI.get_name_label(vdi_ref)
-            vdi_record = str(self.__session.xenapi.VDI.get_record(vdi_ref))
-            vm_id = int(self.__db.query("SELECT vm_id FROM vms WHERE vm_uuid=(?)", (self.__vm,))[0][0])
+            vdi_record = self.__session.xenapi.VDI.get_record(vdi_ref)
+            # Remove this record as it causes issues when being evaluated later
+            # TODO: consider converting to json instead so we don't need to use eval to read
+            vdi_record['snapshot_time'] = "NULL"
+            vm_id = int(self.__db.query("SELECT vm_id FROM vms WHERE vm_uuid=(?)", (self.__vm.uuid,))[0][0])
             self.__db.insert("INSERT INTO vdis(vdi_uuid, vdi_name, record, vm_id) VALUES (?,?,?,?)",
-                             (self.__uuid, self.__name, vdi_record, vm_id))
+                             (self.__uuid, self.__name, str(vdi_record), vm_id))

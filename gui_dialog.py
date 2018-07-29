@@ -11,7 +11,7 @@ class new_vm_dialog(SimpleDialog.Dialog):
         super().__init__(master)
 
     def create_new_session(self):
-        #TO-DO: find way to pass variables to this
+        #TODO: find way to pass variables to this
         session = XenAPI.Session("https://" + self.host, ignore_ssl=True)
         session.login_with_password("root", "xenroot", "0.1", "CBT example")
         return session
