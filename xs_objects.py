@@ -2,6 +2,7 @@ from connections import DbConnection, XAPI
 from xs_cbt_backup import backup as Backup
 import ast
 from datetime import *
+from pathlib import Path
 
 class Local(object):
     """
@@ -217,18 +218,12 @@ class VM(object):
                             (self.__uuid, self.__name, record_string, "True"))
 
     def backup(self):
-        # Backup a VM
-        # Record backup in table
-        #timestamp = self.__db.query("SELECT date('now')")[0][0]
-
         # Initiate backup
         # TODO: handle this in a thread
-        # def __init__(self, session, backup_dir, use_tls):
-        self.__backup = Backup.BackupConfig(self.__session, "C:\\Users\Tom\Documents\.backup", False)
-        #def backup(self, vm_uuid):
+        self.__backup = Backup.BackupConfig(self.__session, Path.home() / ".cbt_backups", False)
+        # Note that this is currently failing
         timestamp = self.__backup.backup(self.__uuid)
         self.__db.insert("INSERT INTO backups VALUES (?,?)", (timestamp, self.__uuid))
-        #location = self.__backup.backup()
 
         # Update backup graph
         self.graph_populate()
