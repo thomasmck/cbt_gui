@@ -3,6 +3,7 @@ from xs_cbt_backup import backup as Backup
 import ast
 from datetime import *
 from pathlib import Path
+import threading
 
 class Local(object):
     """
@@ -65,6 +66,7 @@ class Host(object):
         # TODO: Only save if not pre-existing
         self.__save()
         self.__buildUp()
+        self.__backup = Backup.BackupConfig(self.__session, Path.home() / ".cbt_backups", False)
 
     def __buildUp(self):
         """
@@ -118,28 +120,30 @@ class Host(object):
         vms = int(self.__db.query("SELECT vm_uuid FROM vms WHERE host_id=(?)", (host_id,))[0])
         for vm in vms:
             vdi_uuid = None
-            self.__vms.append(VM(vm, self, self.__session, self.__db))
+            self.__vms.append(VM(vm, self, self.__session, self.__db, self.__backup))
 
     def __fetchUncachedVms(self):
         self.__vms = []
         vms_refs = [vm for vm in self.__session.xenapi.VM.get_all() if not self.__session.xenapi.VM.get_is_a_template(vm)]
         for vm_ref in vms_refs:
             vm_uuid = self.__session.xenapi.VM.get_uuid(vm_ref)
-            self.__vms.append(VM(vm_uuid, self, self.__session, self.__db))
+            self.__vms.append(VM(vm_uuid, self, self.__session, self.__db, self.__backup))
 
 
 class VM(object):
     """
     Build and save VM objects
     """
-    def __init__(self, uuid, host, session, db):
+    def __init__(self, uuid, host, session, db, backup):
         self.__uuid = uuid
         self.__host = host
         self.__session = session
         self.__vdis = None
         self.__db = db
+        self.__threads = []
         self.__buildUp(uuid)
         self.__save()
+        self.__backup = backup
 
     def __buildUp(self, uuid):
         """
@@ -220,13 +224,15 @@ class VM(object):
     def backup(self):
         # Initiate backup
         # TODO: handle this in a thread
-        self.__backup = Backup.BackupConfig(self.__session, Path.home() / ".cbt_backups", False)
-        # Note that this is currently failing
+        t = threading.Thread(name=self.__uuid, target=self.__backup())
+        self.__threads.append(t)
+        t.start()
+        return t
+
+    def __backup(self):
+        # Consider adding some logging in here to assist with triage
         timestamp = self.__backup.backup(self.__uuid)
         self.__db.insert("INSERT INTO backups VALUES (?,?)", (timestamp, self.__uuid))
-
-        # Update backup graph
-        self.graph_populate()
 
     def __save_backup_details(self):
         """

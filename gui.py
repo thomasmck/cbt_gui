@@ -21,6 +21,8 @@ class App():
         self.setup_menu()
         self.gather_existing_data()
         self.populate_page()
+        self.__backup_threads = {}
+        self.progress_labels = []
 
     def setup_menu(self):
         # Create menu bar
@@ -68,6 +70,11 @@ class App():
         self.bottom_frame = Frame(self.master, bg='white')
         self.m2.add(self.bottom_frame)
 
+        # Height options have no impact :(
+        self.progess_frame = Frame(self.master, bg='blue', height=50)
+        self.m2.add(self.progess_frame, height=50)
+        self.m2.paneconfigure(self.progess_frame, height=2)
+
         Label(self.left_frame, text="VMs", width=30).grid(row=0, sticky='W')
         Label(self.top_frame, text="Graphs", width=100).grid(row=0, sticky='W')
         Label(self.bottom_frame, text="Details", width=100).grid(row=0, sticky='W')
@@ -86,7 +93,45 @@ class App():
 
     def backup_vm(self):
         vm = self.__vms[self.VM[0]]
-        vm.backup()
+        backup_thread = vm.backup()
+        self.__backup_threads[backup_thread.name] = backup_thread
+        # Start process to track thread status
+        self.__track_thread_status()
+
+    def __track_thread_status(self):
+        # This probably needs to be a thread as well
+        # To find progress we need to compare the size of the current file we are writing vs. the virtual size
+        for thread in self.__backup_threads:
+            if thread.is_alive():
+                self.__update_progress(thread)
+            else:
+                # Once a thread is complete update the graph then remove it from the list
+                self.graph_populate()
+                self.__backup_threads.remove(thread)
+        # Poll every 5 seconds
+        self.master.after(5000, self.__track_thread_status())
+
+    def __update_progress(self, thread):
+        def create_label(self, text, row):
+            label = Label(self.progess_frame, text=text, anchor=W)
+            label.grid(row=row, sticky='W')
+            return label
+
+        """Update progress frame with vm backup progress"""
+
+        # Attempt to clean up existing entries before we create the new ones
+        try:
+            for label in self.progress_labels:
+                label.destroy()
+        except Exception as e:
+            print(e)
+
+        # Add vm uuid row
+        percent_completion = None
+        progess = "%s: %s \%" %(thread.name, percent_completion)
+        # Need to adjust row
+        self.progress_labels.append(create_label(self, progess, 1))
+
 
     def graph_populate(self):
         """Generate graph of how many backups have been done each day"""
