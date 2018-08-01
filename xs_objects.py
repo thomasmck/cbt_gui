@@ -224,12 +224,12 @@ class VM(object):
     def backup(self):
         # Initiate backup
         # TODO: handle this in a thread
-        t = threading.Thread(name=self.__uuid, target=self.__backup())
+        t = threading.Thread(name=self.__uuid, target=self.__backup_record())
         self.__threads.append(t)
         t.start()
         return t
 
-    def __backup(self):
+    def __backup_record(self):
         # Consider adding some logging in here to assist with triage
         timestamp = self.__backup.backup(self.__uuid)
         self.__db.insert("INSERT INTO backups VALUES (?,?)", (timestamp, self.__uuid))

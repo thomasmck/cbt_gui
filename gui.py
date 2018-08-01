@@ -5,9 +5,9 @@ import matplotlib
 import numpy
 import time
 matplotlib.use("TkAgg")
-from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg, NavigationToolbar2TkAgg
+from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from matplotlib.figure import Figure
-from gui_dialog import new_vm_dialog, new_host_dialog
+from gui_dialog import new_host_dialog
 
 
 class App():
@@ -126,23 +126,22 @@ class App():
         except Exception as e:
             print(e)
 
-        # Add vm uuid row
         percent_completion = None
         progess = "%s: %s \%" %(thread.name, percent_completion)
         # Need to adjust row
         self.progress_labels.append(create_label(self, progess, 1))
 
-
     def graph_populate(self):
         """Generate graph of how many backups have been done each day"""
+        # Clear any existing widgets
         try:
             self.canvas.get_tk_widget().destroy()
         except Exception as e:
             print(e)
             pass
-        print("THERE")
+
         # Add 0 entries for empty days
-        self.c.execute("SELECT date, count(date) FROM backups WHERE date BETWEEN datetime('now', '-6 days') AND datetime('now', 'localtime') GROUP BY date ORDER BY date ASC")
+        self.__db.query("SELECT date, count(date) FROM backups WHERE date BETWEEN datetime('now', '-6 days') AND datetime('now', 'localtime') GROUP BY date ORDER BY date ASC")
         data = self.c.fetchall()
         x = []
         y = []
@@ -167,7 +166,6 @@ class App():
         self.canvas = FigureCanvasTkAgg(f, master=self.top_frame)
         self.canvas.show()
         self.canvas.get_tk_widget().grid()
-        print("HERE")
 
     def populate_page(self):
         """Function to populate left frame with tracked VMs"""
@@ -263,9 +261,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
-    """
-    def new_vm(self):
-        v = new_vm_dialog(self.master, self._pool_master_address)
-        vm_uuid = v.result
-    """
