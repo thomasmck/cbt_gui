@@ -63,7 +63,7 @@ class XAPI(object):
             return cls._xapi_session
 
         # TODO: Allow connecting to different hosts
-        hostname = "lcy2-dt112.xenrt.citrite.net"
+        hostname = "xrtuk-12-03.xenrt.citrite.net"
         username = "root"
         password = "xenroot"
         ignore_ssl = True
