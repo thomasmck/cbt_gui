@@ -126,6 +126,9 @@ class App():
         except Exception as e:
             print(e)
 
+        # Calculate percent_comlete by comparing the file size to the VDI virtual/physical size.
+        # For incremental backup would need to add function to xs_cbt_backup code to track progress of iteration
+        # through bitmap
         percent_completion = None
         progess = "%s: %s \%" %(thread.name, percent_completion)
         # Need to adjust row

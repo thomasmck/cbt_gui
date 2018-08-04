@@ -59,11 +59,9 @@ class Host(object):
         self.__username = username
         self.__password = password
         #self.__address = name + ".xenrt.citrite.net"
-        # TEMP
         self.__address = name
-        self.__session = XAPI.connect()
+        self.__session = XAPI.connect(self.__name, self.__username, self.__password)
         self.__db = db
-        # TODO: Only save if not pre-existing
         self.__save()
         self.__buildUp()
         self.__backup = Backup.BackupConfig(self.__session, Path.home() / ".cbt_backups", False)
@@ -116,7 +114,6 @@ class Host(object):
         self.__vms = []
         # Add type (i.e. int) option to query
         host_id = int(self.__db.query("SELECT host_id FROM vms WHERE host=(?)", (self.__address,))[0][0])
-        # Need to verify this correctly handles return format
         vms = int(self.__db.query("SELECT vm_uuid FROM vms WHERE host_id=(?)", (host_id,))[0])
         for vm in vms:
             vdi_uuid = None
@@ -183,7 +180,6 @@ class VM(object):
             print("UNCACHED")
 
     def __fetchCachedVdis(self):
-        #self.__vdis = {self.__name: []}
         self.__vdis = []
         # Add type (i.e. int) option to query
         print("a")
@@ -192,17 +188,13 @@ class VM(object):
         vdis = self.__db.query("SELECT vdi_uuid FROM vdis WHERE vm_id=(?)", (vm_id,))[0]
         print(vdis)
         for vdi in vdis:
-            vdi_uuid = None
-            #self.__vdis[self.__name].append(VDI(vdi_uuid, self.__uuid, self.__db, self.__session))
             self.__vdis.append(VDI(vdi, self, self.__db, self.__session))
 
-    # THIS FUNCTION IS BEING CALLED EVEN WHEN VDIS ARE CACHED
     def __fetchUncachedVdis(self):
         self.__vdis = []
         vm_ref = self.__session.xenapi.VM.get_by_uuid(self.__uuid)
         vbd_refs = self.__session.xenapi.VM.get_VBDs(vm_ref)
         print("VBD refs: %s" % vbd_refs)
-        # (vdi_id integer primary key, vdi_uuid text, vdi_name text, record text, vm_id, FOREIGN KEY(vm_id) REFERENCES vms(vm_id))''')
         for vbd_ref in vbd_refs:
             vdi_ref = self.__session.xenapi.VBD.get_VDI(vbd_ref)
             if vdi_ref == "OpaqueRef:NULL":
@@ -212,18 +204,14 @@ class VM(object):
 
     def __save(self):
         try:
-            existing = int(self.__db.query("SELECT vm_id FROM vms WHERE vm_uuid=(?)",  (self.__uuid,))[0][0])
-            print("Not saving")
+            self.__db.query("SELECT vm_id FROM vms WHERE vm_uuid=(?)",  (self.__uuid,))[0][0]
         except:
-            print("Saving")
             record_string = str(self.__session.xenapi.VM.get_record(self.__ref))
-            # (vm_id integer primary key, vm_uuid text, vm_name text, record text, tracked bool)
             self.__db.insert("INSERT INTO vms(vm_uuid, vm_name, record, tracked) VALUES (?,?,?,?)",
                             (self.__uuid, self.__name, record_string, "True"))
 
     def backup(self):
         # Initiate backup
-        # TODO: handle this in a thread
         t = threading.Thread(name=self.__uuid, target=self.__backup_record())
         self.__threads.append(t)
         t.start()

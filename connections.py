@@ -58,14 +58,10 @@ class XAPI(object):
     _xapi_session = None
 
     @classmethod
-    def connect(cls, disconnect_atexit=True):
+    def connect(cls, disconnect_atexit=True, hostname, username, password):
         if cls._xapi_session is not None:
             return cls._xapi_session
 
-        # TODO: Allow connecting to different hosts
-        hostname = "xrtuk-12-03.xenrt.citrite.net"
-        username = "root"
-        password = "xenroot"
         ignore_ssl = True
 
         if hostname == 'localhost':
